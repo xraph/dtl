@@ -113,14 +113,28 @@ affordance.
 
 | input | type | default | notes |
 |---|---|---|---|
-| `node-version` | string | `20` | matches `spindle` and `farp` |
-| `semantic-release-version` | string | `23` | matches `spindle` and `farp` |
-| `extra-plugins` | string | `'[]'` | JSON array of npm specs, e.g. `["@semantic-release/exec@6"]` |
+| `node-version` | string | `22` | see below — not `20` |
+| `semantic-release-version` | string | `25` | current major |
+| `extra-plugins` | string | `'[]'` | JSON array of npm specs, e.g. `["@semantic-release/exec@7"]` |
 | `dry-run` | boolean | `false` | used by this repo's own smoke test |
 | `warm-go-proxy` | boolean | `false` | the single language-specific affordance |
 
 Outputs: `version` (the released version, empty when nothing was released) and
 `released` (`true`/`false`), so callers can chain follow-on jobs.
+
+### Why the defaults diverge from `spindle` and `farp`
+
+Both pin `semantic-release@23` on Node 20. The current plugin generation cannot
+run there: `semantic-release@25`, `@semantic-release/github@12`,
+`@semantic-release/git@11`, `@semantic-release/changelog@7` and
+`conventional-changelog-conventionalcommits@10` all declare
+`engines.node: ^22.14.0 || >=24.10.0`. Node 20 fails at install.
+
+So the pinned set is Node 22 with the current plugin majors, not the versions
+`spindle` runs. This is the same reasoning applied to `golangci-lint` in the
+previous phase — a brand-new shared workflow should not ship two majors behind
+on day one. `spindle` and `farp` keep their working Node 20 / v23 setup; neither
+is being migrated, so nothing breaks.
 
 Each consumer owns its own `.releaserc.json`. That is where genuinely
 per-project configuration belongs — release rules, changelog preamble, and any
