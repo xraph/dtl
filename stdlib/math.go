@@ -102,7 +102,7 @@ func fnSign(args []any) (any, error) {
 }
 
 func fnRandom(_ []any) (any, error) {
-	return rand.Float64(), nil
+	return rand.Float64(), nil //#nosec G404 -- expression-language RNG, not used for security/crypto purposes
 }
 
 func fnRandomInt(args []any) (any, error) {
@@ -111,5 +111,5 @@ func fnRandomInt(args []any) (any, error) {
 	if min >= max {
 		return min, nil
 	}
-	return min + rand.Int64N(max-min+1), nil
+	return min + rand.Int64N(max-min+1), nil //#nosec G404 -- expression-language RNG, not used for security/crypto purposes
 }
