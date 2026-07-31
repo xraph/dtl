@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   release:
-    uses: xraph/go-workflows/.github/workflows/go-release.yml@v1
+    uses: xraph/workflows/.github/workflows/go-release.yml@v1
     with:
       version: ${{ inputs.version }}
       go-version: '1.26'

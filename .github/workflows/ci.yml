@@ -8,7 +8,7 @@ on:
 
 jobs:
   ci:
-    uses: xraph/go-workflows/.github/workflows/go-ci.yml@v1
+    uses: xraph/workflows/.github/workflows/go-ci.yml@v1
     with:
       go-versions: '["1.26"]'
     secrets:
