@@ -444,6 +444,8 @@ jobs:
   setup:
     name: Resolve config
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       primary-go-version: ${{ steps.resolve.outputs.primary }}
       codecov-flag: ${{ steps.resolve.outputs.flag }}
@@ -456,6 +458,7 @@ jobs:
           VERSIONS_IN: ${{ inputs.go-versions }}
           FLAG_IN: ${{ inputs.codecov-flag-name }}
           REPO_NAME: ${{ github.event.repository.name }}
+          WORKING_DIR: ${{ inputs.working-directory }}
         run: |
           set -euo pipefail
           if [ -n "$PRIMARY_IN" ]; then
@@ -473,13 +476,15 @@ jobs:
             echo "### CI configuration"
             echo "- primary Go version: \`$PRIMARY\`"
             echo "- Codecov flag: \`$FLAG\`"
-            echo "- working directory: \`${{ inputs.working-directory }}\`"
+            echo "- working directory: \`$WORKING_DIR\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   test:
     name: Test (${{ matrix.os }}, go${{ matrix.go-version }})
     needs: setup
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     defaults:
       run:
         shell: bash
@@ -508,18 +513,28 @@ jobs:
           set -euo pipefail
           if [ -f Makefile ] && make -n test >/dev/null 2>&1; then
             echo 'run=make test' >> "$GITHUB_OUTPUT"
+            # shellcheck disable=SC2016 # backticks are literal markdown formatting, not command substitution
             echo 'source=Makefile target `test`' >> "$GITHUB_OUTPUT"
           else
             echo 'run=go test -race ./...' >> "$GITHUB_OUTPUT"
+            # shellcheck disable=SC2016 # backticks are literal markdown formatting, not command substitution
             echo 'source=fallback `go test -race ./...`' >> "$GITHUB_OUTPUT"
           fi
 
       - name: Report resolved test command
+        env:
+          MATRIX_OS: ${{ matrix.os }}
+          MATRIX_GO_VERSION: ${{ matrix.go-version }}
+          CMD_SOURCE: ${{ steps.cmd.outputs.source }}
         run: |
-          echo "- \`${{ matrix.os }}\` go${{ matrix.go-version }} tests: ${{ steps.cmd.outputs.source }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`$MATRIX_OS\` go$MATRIX_GO_VERSION tests: $CMD_SOURCE" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run tests
-        run: ${{ steps.cmd.outputs.run }}
+        env:
+          TEST_CMD: ${{ steps.cmd.outputs.run }}
+        run: |
+          set -euo pipefail
+          eval "$TEST_CMD"
 
       - name: Resolve coverage command
         id: covcmd
@@ -528,27 +543,35 @@ jobs:
           set -euo pipefail
           if [ -f Makefile ] && make -n test-coverage >/dev/null 2>&1; then
             echo 'run=make test-coverage' >> "$GITHUB_OUTPUT"
+            # shellcheck disable=SC2016 # backticks are literal markdown formatting, not command substitution
             echo 'source=Makefile target `test-coverage`' >> "$GITHUB_OUTPUT"
           else
             echo 'run=go test -race -covermode=atomic -coverprofile=coverage.out ./...' >> "$GITHUB_OUTPUT"
+            # shellcheck disable=SC2016 # backticks are literal markdown formatting, not command substitution
             echo 'source=fallback `go test -coverprofile`' >> "$GITHUB_OUTPUT"
           fi
 
       - name: Run coverage
         if: steps.covcmd.outcome == 'success'
+        env:
+          COV_SOURCE: ${{ steps.covcmd.outputs.source }}
+          COV_CMD: ${{ steps.covcmd.outputs.run }}
         run: |
-          echo "- coverage: ${{ steps.covcmd.outputs.source }}" >> "$GITHUB_STEP_SUMMARY"
-          ${{ steps.covcmd.outputs.run }}
+          set -euo pipefail
+          echo "- coverage: $COV_SOURCE" >> "$GITHUB_STEP_SUMMARY"
+          eval "$COV_CMD"
 
       - name: Locate coverage profile
         id: covfile
         if: steps.covcmd.outcome == 'success'
+        env:
+          WORKING_DIR: ${{ inputs.working-directory }}
         run: |
           set -euo pipefail
           if [ -f coverage.out ]; then
-            echo "path=${{ inputs.working-directory }}/coverage.out" >> "$GITHUB_OUTPUT"
+            echo "path=$WORKING_DIR/coverage.out" >> "$GITHUB_OUTPUT"
           elif [ -f coverage/coverage.out ]; then
-            echo "path=${{ inputs.working-directory }}/coverage/coverage.out" >> "$GITHUB_OUTPUT"
+            echo "path=$WORKING_DIR/coverage/coverage.out" >> "$GITHUB_OUTPUT"
           else
             echo "path=" >> "$GITHUB_OUTPUT"
             echo "No coverage profile produced; skipping upload." >> "$GITHUB_STEP_SUMMARY"
@@ -574,14 +597,16 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ${{ steps.covfile.outputs.path }}
-          flags: unittests
-          name: ${{ needs.setup.outputs.codecov-flag }}
+          flags: ${{ needs.setup.outputs.codecov-flag }}
+          name: unittests
           fail_ci_if_error: false
 
   lint:
     name: Lint
     needs: setup
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -603,6 +628,8 @@ jobs:
     name: Verify
     needs: setup
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         shell: bash
@@ -633,28 +660,36 @@ jobs:
           set -euo pipefail
           if [ -f Makefile ] && make -n vet >/dev/null 2>&1; then
             echo 'run=make vet' >> "$GITHUB_OUTPUT"
+            # shellcheck disable=SC2016 # backticks are literal markdown formatting, not command substitution
             echo 'source=Makefile target `vet`' >> "$GITHUB_OUTPUT"
           else
             echo 'run=go vet ./...' >> "$GITHUB_OUTPUT"
+            # shellcheck disable=SC2016 # backticks are literal markdown formatting, not command substitution
             echo 'source=fallback `go vet ./...`' >> "$GITHUB_OUTPUT"
           fi
 
       - name: Run vet
+        env:
+          VET_SOURCE: ${{ steps.vetcmd.outputs.source }}
+          VET_CMD: ${{ steps.vetcmd.outputs.run }}
         run: |
-          echo "- vet: ${{ steps.vetcmd.outputs.source }}" >> "$GITHUB_STEP_SUMMARY"
-          ${{ steps.vetcmd.outputs.run }}
+          set -euo pipefail
+          echo "- vet: $VET_SOURCE" >> "$GITHUB_STEP_SUMMARY"
+          eval "$VET_CMD"
 
       - name: Check go.mod tidiness
         run: |
           set -euo pipefail
           go mod tidy
-          git diff --exit-code go.mod go.sum
+          git diff --exit-code -- go.mod go.sum
 
   security:
     name: Security
     needs: setup
     if: ${{ !inputs.skip-security }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         shell: bash
@@ -670,15 +705,19 @@ jobs:
           cache-dependency-path: ${{ inputs.working-directory }}/go.mod
 
       - name: Run gosec
+        env:
+          GOSEC_VERSION: ${{ inputs.gosec-version }}
         run: |
           set -euo pipefail
-          go install "github.com/securego/gosec/v2/cmd/gosec@${{ inputs.gosec-version }}"
+          go install "github.com/securego/gosec/v2/cmd/gosec@$GOSEC_VERSION"
           gosec -exclude=G115 -exclude-dir=vendor ./...
 
       - name: Run govulncheck
+        env:
+          GOVULNCHECK_VERSION: ${{ inputs.govulncheck-version }}
         run: |
           set -euo pipefail
-          go install "golang.org/x/vuln/cmd/govulncheck@${{ inputs.govulncheck-version }}"
+          go install "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VERSION"
           govulncheck ./...
 ```
 
@@ -1799,6 +1838,38 @@ git fetch --tags --force && git rev-parse v1 v1.2.0
 Expected: both SHAs match.
 
 ---
+
+## As-built: what changed after this plan was written
+
+This plan was executed, and the embedded YAML above has been re-synced to what
+actually shipped. The differences are worth recording, because most of them were
+found by review or by real runners rather than by planning.
+
+| # | Found by | Change |
+|---|---|---|
+| 1 | First CI run | GitHub's ubuntu runners have `shellcheck`; the dev machine did not. Six SC2016 false positives on literal markdown backticks in `go-ci.yml`, suppressed with narrowly-scoped `# shellcheck disable=SC2016`. Shipped `v1.0.0`. |
+| 2 | Task 5 review | **Shell injection.** This plan's original `go-release.yml` wrote `echo '${{ steps.changelog.outputs.body }}'`. `${{ }}` is substituted into the script source before bash parses it, so an apostrophe in a commit message broke the quoting and a crafted one executed shell in a `contents: write` job. Fixed by routing every value through `env:`; see the Global Constraints rule. Shipped `v1.1.1`. |
+| 3 | Task 6 first run | CodeQL failed `startup_failure`. A `workflow_call` callee's job-level `permissions:` can only *narrow* the caller's token, never widen it, so the caller must declare `security-events: write`. Fixed in `dtl`'s caller and in `examples/library-caller/codeql.yml`. Shipped `v1.1.2`. |
+| 4 | Final review | `go-ci.yml` had never received change #2's remediation — 11 further `${{ }}`-in-`run:` sites, including caller-supplied versions spliced into `go install`. Shipped `v1.3.0`. |
+| 5 | Final review | `git diff --exit-code go.mod go.sum` exits 128 when a module has no `go.sum` — contradicting this plan's own reason for keying the cache on `go.mod`. Fixed with the `--` pathspec, plus a new dependency-free fixture `testdata/fixture-nodeps/` as the regression test. Shipped `v1.3.0`. |
+| 6 | Final review | `permissions: contents: read` added to every `go-ci.yml` job, and `secrets: inherit` replaced with explicit pass-through in all four callers. Shipped `v1.3.0`. |
+| 7 | Final review | `submodules` documented as root-module packages only — it cannot serve genuinely nested `go.mod` modules, because Go resolves those from `<sub>/vX.Y.Z` tags this workflow never creates. Affects `farp`. |
+| 8 | Task 6 | Release version changed from `v0.1.0` to **`v1.0.1`**: `dtl` already had a published `v1.0.0` predating this work, so `v0.1.0` would have sat below the existing latest. |
+
+Shipped tags: `go-workflows` `v1.0.0` → `v1.3.0`, moving `v1`. `dtl` published
+`v1.0.1` through `go-release.yml`, with the install line correctly derived as
+`go get github.com/xraph/dtl@v1.0.1`.
+
+Known-open, not defects in what shipped:
+
+- Nested modules get no CI — `go-ci.yml` has no `submodules` input, so `farp`'s
+  `discovery/*` modules would be untested after migration.
+- `codeql.yml`'s `working-directory` only feeds the cache path; `init` and
+  `autobuild` ignore it, so it does not scope analysis in a monorepo.
+- `ncipollo/release-action@v1` is pinned to a mutable major tag while running in
+  a `contents: write` job — the highest-value pin in the system.
+- `go-workflows` `main` has no branch protection, and `v1` is mutable by anyone
+  with push access.
 
 ## Follow-up, explicitly not in this plan
 
