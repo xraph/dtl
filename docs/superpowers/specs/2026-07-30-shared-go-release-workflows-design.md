@@ -414,6 +414,26 @@ serves monorepo consumers later.
 | Dirty tree on dispatch | explicit check fails before any mutation |
 | Release creation fails after tag push | tag must be deleted and the dispatch re-run; documented in the README |
 | Caller omits `permissions: contents: write` | fails at release creation; the examples and README both carry the block |
+| Commit message contains shell metacharacters | every value reaches bash through the step's `env:` as a quoted variable; no `${{ }}` appears inside any `run:` block |
+| Commit-log line collides with the output delimiter | multiline `$GITHUB_OUTPUT` uses a per-run randomized heredoc delimiter |
+
+### Release notes are assembled as data, never as code
+
+`go-release.yml` builds `RELEASE_NOTES.md` in bash and hands it to
+`ncipollo/release-action` via `bodyFile`, rather than composing the body from
+inline `${{ }}` expressions the way the current xraph workflows do.
+
+That choice is load-bearing for more than readability. GitHub substitutes
+`${{ }}` into a `run:` script's *source* before bash parses it, so an
+expression carrying `git log` output — arbitrary commit messages — becomes
+executable code. An apostrophe in a commit message breaks the quoting; a
+crafted message runs shell in a job holding `contents: write` and
+`GITHUB_TOKEN`. The first implementation of this workflow shipped exactly that
+bug and it was fixed in `go-workflows v1.1.1`.
+
+The rule that follows: values reach bash through the step's `env:` block as
+quoted variables. `${{ }}` belongs in `if:`, `with:`, `env:`, and
+`working-directory:` — never in `run:`.
 
 ## Sequencing
 

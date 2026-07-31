@@ -48,6 +48,18 @@ Note these are newer than the existing repos' `golangci-lint v2.6.1`. That is in
 
 **Cache key is `go.mod`, not `go.sum`.** `actions/setup-go` fails the job outright when `cache-dependency-path` matches no file, and a module with no dependencies has no `go.sum`. `go.mod` always exists, so it can never produce that failure. The trade-off is a slightly staler cache when `go.sum` changes without `go.mod` changing — a minor performance cost, versus a hard failure for any dependency-free consumer.
 
+**Never put a `${{ }}` expression inside a `run:` block.** GitHub substitutes `${{ }}` into the script *source* before bash parses it, so the value becomes code rather than data. A commit message containing an apostrophe then breaks the quoting, and a crafted one executes arbitrary shell in a job holding `contents: write`. Pass every value through the step's `env:` block and reference it as a quoted bash variable:
+
+```yaml
+env:
+  BODY: ${{ steps.changelog.outputs.body }}
+run: printf '%s\n' "$BODY"
+```
+
+Use `printf '%s\n'` rather than `echo` so leading dashes and backslashes are not interpreted. `${{ }}` in `if:`, `with:`, `env:`, and `working-directory:` is correct and stays. This rule is absolute and applies to every workflow in the repository — an earlier draft of `go-release.yml` violated it and shipped a real shell-injection vulnerability, fixed in `v1.1.1`.
+
+**Multiline `$GITHUB_OUTPUT` needs a randomized heredoc delimiter.** A fixed delimiter can be closed early by content that happens to match it. Generate one per run: `DELIM="GHEOF_$(openssl rand -hex 8)"`.
+
 **`GITHUB_TOKEN` scope note.** The local `gh` token lacks the `workflow` scope, so workflow files cannot be pushed over HTTPS. Git is configured for SSH (`git@github.com:...`), which uses the SSH key and is unaffected. All pushes in this plan use SSH remotes.
 
 **Outward-facing gates.** Tasks 3, 4, 6 and 7 create a public repository, open a pull request, or publish a release. Each is marked **REQUIRES CONFIRMATION** and must not proceed until the user explicitly approves that specific action.
@@ -1083,9 +1095,10 @@ jobs:
       - name: Validate version format
         if: steps.ver.outputs.mode == 'dispatch'
         shell: bash
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
           set -euo pipefail
-          VERSION='${{ steps.ver.outputs.version }}'
           if ! printf '%s' "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
             echo "Version must look like v1.2.3 or v1.2.3-beta.1, got: $VERSION"
             exit 1
@@ -1094,9 +1107,10 @@ jobs:
       - name: Ensure tag does not already exist
         if: steps.ver.outputs.mode == 'dispatch'
         shell: bash
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
           set -euo pipefail
-          VERSION='${{ steps.ver.outputs.version }}'
           if git rev-parse "$VERSION" >/dev/null 2>&1; then
             echo "Tag $VERSION already exists."
             exit 1
@@ -1116,9 +1130,11 @@ jobs:
       - name: Record previous tag
         id: prev
         shell: bash
+        env:
+          MODE: ${{ steps.ver.outputs.mode }}
         run: |
           set -euo pipefail
-          if [ '${{ steps.ver.outputs.mode }}' = 'tag' ]; then
+          if [ "$MODE" = 'tag' ]; then
             PREV=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo '')
           else
             PREV=$(git describe --tags --abbrev=0 2>/dev/null || echo '')
@@ -1149,7 +1165,11 @@ jobs:
         if: inputs.run-tests
         shell: bash
         working-directory: ${{ inputs.working-directory }}
-        run: ${{ steps.cmd.outputs.run }}
+        env:
+          TEST_CMD: ${{ steps.cmd.outputs.run }}
+        run: |
+          set -euo pipefail
+          eval "$TEST_CMD"
 
       - name: Run golangci-lint
         if: inputs.run-tests
@@ -1162,27 +1182,30 @@ jobs:
       - name: Build changelog body
         id: changelog
         shell: bash
+        env:
+          PREV: ${{ steps.prev.outputs.tag }}
         run: |
           set -euo pipefail
-          PREV='${{ steps.prev.outputs.tag }}'
           if [ -z "$PREV" ]; then
             BODY=$(git log --oneline --decorate)
           else
             BODY=$(git log "${PREV}..HEAD" --oneline --decorate)
           fi
+          DELIM="GHEOF_$(openssl rand -hex 8)"
           {
-            echo 'body<<GHEOF'
-            echo "$BODY"
-            echo 'GHEOF'
+            echo "body<<$DELIM"
+            printf '%s\n' "$BODY"
+            echo "$DELIM"
           } >> "$GITHUB_OUTPUT"
 
       - name: Update CHANGELOG.md
         if: steps.ver.outputs.mode == 'dispatch' && inputs.update-changelog
         shell: bash
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          PREV: ${{ steps.prev.outputs.tag }}
         run: |
           set -euo pipefail
-          VERSION='${{ steps.ver.outputs.version }}'
-          PREV='${{ steps.prev.outputs.tag }}'
           DATE=$(date +%Y-%m-%d)
           {
             echo '# Changelog'
@@ -1210,9 +1233,10 @@ jobs:
       - name: Commit, tag and push
         if: steps.ver.outputs.mode == 'dispatch'
         shell: bash
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
           set -euo pipefail
-          VERSION='${{ steps.ver.outputs.version }}'
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           if [ -n "$(git status --porcelain)" ]; then
@@ -1227,12 +1251,13 @@ jobs:
         id: notes
         shell: bash
         env:
+          VERSION: ${{ steps.ver.outputs.version }}
           MODULE_IN: ${{ inputs.module-path }}
           SUBMODULES: ${{ inputs.submodules }}
           DOC_LINKS: ${{ inputs.doc-links }}
+          CHANGELOG_BODY: ${{ steps.changelog.outputs.body }}
         run: |
           set -euo pipefail
-          VERSION='${{ steps.ver.outputs.version }}'
           MODULE="$MODULE_IN"
           if [ -z "$MODULE" ]; then
             MODULE="github.com/${GITHUB_REPOSITORY}"
@@ -1252,7 +1277,7 @@ jobs:
             echo '## Changes'
             echo
             echo '```'
-            echo '${{ steps.changelog.outputs.body }}'
+            printf '%s\n' "$CHANGELOG_BODY"
             echo '```'
             echo
             echo '## Documentation'
@@ -1278,11 +1303,11 @@ jobs:
       - name: Warm the Go module proxy
         shell: bash
         env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          MODULE: ${{ steps.notes.outputs.module }}
           SUBMODULES: ${{ inputs.submodules }}
         run: |
           set -euo pipefail
-          VERSION='${{ steps.ver.outputs.version }}'
-          MODULE='${{ steps.notes.outputs.module }}'
           curl -sSf "https://proxy.golang.org/${MODULE}/@v/${VERSION}.info" || true
           for sub in $(printf '%s' "$SUBMODULES" | jq -r '.[]'); do
             curl -sSf "https://proxy.golang.org/${MODULE}/${sub}/@v/${VERSION}.info" || true
