@@ -564,7 +564,64 @@ And in the init step:
 
 This is a stronger default than CodeQL's standard set and will surface new findings on already-migrated repositories including `dtl`. That is intended for a workflow whose job is raising the floor.
 
-- [ ] **Step 4: Document both in `README.md`**
+- [ ] **Step 4: Give every `go-ci.yml` caller the permission the SARIF upload needs**
+
+This step is not optional bookkeeping — without it the feature added in Step 2 fails on every consumer.
+
+All four consumer repos have their default workflow token set to `read` (verified: `gh api repos/xraph/<r>/actions/permissions/workflow --jq .default_workflow_permissions`). A `workflow_call` callee can only *narrow* the caller's token, never widen it, so the `security-events: write` declared on the `security` job grants nothing unless the caller supplies it. This is the same failure that produced a `startup_failure` on CodeQL in the previous phase.
+
+Add this block to `examples/go-library/ci.yml`, between `on:` and `jobs:`:
+
+```yaml
+# Required: a called workflow can only narrow the caller's token, never widen
+# it. Without security-events: write the gosec SARIF upload fails.
+permissions:
+  contents: read
+  security-events: write
+```
+
+Then apply the identical block to `dtl`'s live caller, which consumes `@v1` and will pick up this change as soon as `v1` moves:
+
+```bash
+cd /Users/rexraphael/Work/xraph/dtl
+git checkout main && git pull
+```
+
+Edit `.github/workflows/ci.yml` so it reads:
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  ci:
+    uses: xraph/workflows/.github/workflows/go-ci.yml@v1
+    with:
+      go-versions: '["1.26"]'
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+```
+
+Commit and push it on `main` directly — it is a one-block caller edit, not a behavior change to `dtl` itself:
+
+```bash
+cd /Users/rexraphael/Work/xraph/dtl
+"$(go env GOPATH)/bin/actionlint" -color; echo "exit=$?"
+git add .github/workflows/ci.yml
+git commit -m "ci: grant security-events write for gosec SARIF upload"
+git push
+```
+
+- [ ] **Step 5: Document both in `README.md`**
 
 Append:
 
@@ -584,7 +641,7 @@ Those runs degrade to log-only output.
 packs. Pass `queries: ''` for CodeQL's standard set.
 ```
 
-- [ ] **Step 5: Run actionlint, expect it to pass**
+- [ ] **Step 6: Run actionlint, expect it to pass**
 
 ```bash
 cd /Users/rexraphael/Work/xraph/go-workflows && "$(go env GOPATH)/bin/actionlint" -color; echo "exit=$?"
@@ -592,7 +649,7 @@ cd /Users/rexraphael/Work/xraph/go-workflows && "$(go env GOPATH)/bin/actionlint
 
 Expected: exit 0.
 
-- [ ] **Step 6: Commit, push, and confirm the smoke jobs still pass**
+- [ ] **Step 7: Commit, push, and confirm the smoke jobs still pass**
 
 ```bash
 cd /Users/rexraphael/Work/xraph/go-workflows
@@ -605,7 +662,7 @@ gh run watch "$(gh run list --workflow=self-test.yml --limit 1 --json databaseId
 
 The three existing smoke jobs pass `skip-security: true`, so they will not exercise the new steps. That is covered in Step 7.
 
-- [ ] **Step 7: Prove the SARIF path actually runs**
+- [ ] **Step 8: Prove the SARIF path actually runs**
 
 Temporarily flip one smoke job to exercise it:
 
@@ -631,7 +688,7 @@ sleep 10
 gh run watch "$(gh run list --workflow=self-test.yml --limit 1 --json databaseId -q '.[0].databaseId')" --exit-status
 ```
 
-- [ ] **Step 8: Tag `v1.4.0`** — CONFIRM FIRST
+- [ ] **Step 9: Tag `v1.4.0`** — CONFIRM FIRST
 
 ```bash
 cd /Users/rexraphael/Work/xraph/go-workflows
