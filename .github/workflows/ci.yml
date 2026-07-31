@@ -1,0 +1,14 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    uses: xraph/go-workflows/.github/workflows/go-ci.yml@v1
+    with:
+      go-versions: '["1.26"]'
+    secrets: inherit
