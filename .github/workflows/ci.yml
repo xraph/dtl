@@ -11,4 +11,5 @@ jobs:
     uses: xraph/go-workflows/.github/workflows/go-ci.yml@v1
     with:
       go-versions: '["1.26"]'
-    secrets: inherit
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
