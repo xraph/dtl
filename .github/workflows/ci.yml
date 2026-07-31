@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
   ci:
     uses: xraph/workflows/.github/workflows/go-ci.yml@v1
