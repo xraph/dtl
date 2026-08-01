@@ -1191,6 +1191,29 @@ Expected: `confy`, `vessel` and `go-utils` each show exactly `ci.yml`, `codeql.y
 
 ---
 
+## As-built: what changed after this plan was written
+
+Executed. Shipped as `xraph/workflows` `v1.5.0`, with `dtl`, `confy`, `vessel`
+and `go-utils` consuming it. What the plan did not anticipate:
+
+| # | Found by | Change |
+|---|---|---|
+| 1 | Pre-flight scan | All four consumer repos have a `read` default workflow token, and a `workflow_call` callee can only *narrow* it — so the `security-events: write` on the `security` job grants nothing unless the caller declares it too. Added Task 3 Step 4 before dispatching. |
+| 2 | Task 2 first run | semantic-release's *default* plugin list includes `@semantic-release/npm`, which fails `ENOPKG` without a `package.json`. Fixed with an explicit `plugins` array. Reviewer confirmed from `get-config.js` that an explicit array **replaces** the defaults, so Go consumers are immune. |
+| 3 | Task 3 first run | GitHub validates the permissions of every nested job in a locally-called reusable workflow **at parse time**, including `if:`-skipped jobs. An under-grant is a `startup_failure`, not a skipped step. |
+| 4 | Task 3 review | Those grants had landed at workflow level, so `actionlint` and `fixtures` inherited Security-tab write access they never use. Moved to job level. Shipped `v1.4.1`. |
+| 5 | Task 4 | **`confy` released as `v1.0.0`, not `v0.5.3`.** The old `auto-release.yml` tagged a `chore: Update CHANGELOG.md` commit that was never merged to `main`, so every legacy tag sits on an orphaned commit unreachable from the release branch. Accepted by the maintainer. |
+| 6 | Task 4 → Task 5 | The same defect in `vessel` and `go-utils` would have attempted `v1.0.0` on both — colliding with `vessel`'s existing tag and regressing `go-utils`. Added the baseline-tag step (`v1.0.3`, `v1.1.4`) before migrating. |
+| 7 | Final review | **`conventional-changelog-conventionalcommits@10` is incompatible with `semantic-release@25`** — the writer silently emitted the version header and dropped every section. `confy`'s `v1.0.0` changelog was 22 bytes. Repinned to `@9`; notes regenerated to 941 bytes. Shipped `v1.5.0`. |
+| 8 | Final review | `workflow_run`'s `branches:` matches the *triggering* run's branch, and a fork's default branch is also `main` — a green fork CI run could fire the release. Guard added on `event` and `head_repository`. |
+| 9 | Final review | On `workflow_run`, `GITHUB_SHA` is the branch tip rather than the CI-verified commit, so a release could tag an untested tree. Added a freshness guard that defers to the newer commit's own run. |
+| 10 | Final review | No `concurrency` guard — two merges in one CI cycle would race, the second dying non-fast-forward after the first tagged. |
+| 11 | Post-fix release | `docs` and `refactor` map to a patch release in `releaseRules` but are `hidden: true` in the preset default, so a `docs`-only release produced header-only notes. `presetConfig.types` now unhides them in all three consumers. |
+
+The lesson worth carrying into the Rust, Node and Dart phases: **a green job proved
+nothing here.** Both #7 and #11 produced valid, empty output with every check
+passing. Assertions must be on the artifact's content, not on the exit code.
+
 ## Follow-up, explicitly not in this plan
 
 - **Phase 2 — Rust track**, harvested from `octopus` (cargo workspace, crates.io, Docker, Helm, Windows) and `farp/farp-rust`.

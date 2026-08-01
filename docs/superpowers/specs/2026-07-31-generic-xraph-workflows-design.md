@@ -122,6 +122,39 @@ affordance.
 Outputs: `version` (the released version, empty when nothing was released) and
 `released` (`true`/`false`), so callers can chain follow-on jobs.
 
+### Correction, applied after this shipped: the preset pin was wrong
+
+The reasoning below produced a real defect and is left here because the lesson
+matters more than the conclusion.
+
+`conventional-changelog-conventionalcommits@10` and `semantic-release@25` are
+**not** a compatible pair. Preset 10 targets the next
+`conventional-changelog-writer` generation; `semantic-release@25` ships
+`release-notes-generator@14`, which uses `writer@8`. The `writerOpts` shape does
+not match, and the writer silently emits the version header with every section
+discarded — no error, no warning.
+
+This shipped: `xraph/confy` `v1.0.0` had a 22-byte `CHANGELOG.md` despite three
+`feat:` and three `fix:` commits. Reproduced both ways before fixing — preset 10
+renders 22 bytes, preset 9 renders 241 bytes with `### Features` and
+`### Bug Fixes`.
+
+**The pin is `conventional-changelog-conventionalcommits@9`.**
+
+Version currency is a property of a *set*, not of a package. `spindle`'s
+"outdated" `@23`/Node-20 combination was outdated and working, because someone
+had actually run it. Two consequences now encoded in the workflow:
+
+- The pinned set must be exercised end to end, not merely installed. The
+  self-test asserts the dry-run notes contain a `###` section heading, because
+  a green job proved nothing here — the failure produced valid, empty output.
+- A release-triggering commit type must also be *visible* in the notes.
+  `commit-analyzer.releaseRules` and `release-notes-generator.presetConfig.types`
+  are separate configs: `docs` and `refactor` map to a patch release but are
+  `hidden: true` in the preset default, so a `docs`-only release produced notes
+  containing nothing but the header. Every consumer's `.releaserc.json` sets
+  `presetConfig.types` to unhide them.
+
 ### Why the defaults diverge from `spindle` and `farp`
 
 Both pin `semantic-release@23` on Node 20. The current plugin generation cannot
