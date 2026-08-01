@@ -956,6 +956,28 @@ Expected: both repos green on their most recent runs.
 
 ---
 
+## As-built: what changed after this plan was written
+
+Executed. `rust-ci.yml` shipped in `xraph/workflows` `v1.6.0`, hardened in `v1.7.0`.
+`farp` migrated and merged; `octopus` migrated but **left unmerged** — see below.
+
+| # | Found by | Change |
+|---|---|---|
+| 1 | Task 1 implementer | This plan's Step 11 `git add` list omitted `.gitignore`, which Step 3 required editing. Included anyway, or the `target/` ignore rule would never have reached the repo. |
+| 2 | Task 2 implementer | `octopus`'s `main` has failed CI on seven consecutive nightlies since 2026-07-26 — a real `clippy::question_mark` violation plus RUSTSEC advisories, all pre-dating this work. PR #5 left open rather than merging past a red required gate. |
+| 3 | Final review | **This plan's Task 2 Step 5 introduced a gating regression.** Bundling all five shared jobs behind one `ci` caller and gating `ci-success` on it meant a nightly-toolchain or rustdoc failure would redden the required check — `main`'s pre-migration policy deliberately excluded those. Fixed by adding an `only-extended` input, letting `octopus` split into a gating `ci` and a non-gating `ci-extended`. Shipped `v1.7.0`. |
+| 4 | Final review | `test-extended` and `docs` resolved commands but wrote nothing to the step summary, contradicting both the README and this plan. Now they report, like every other job. |
+| 5 | Final review | `cargo-audit` needs a `Cargo.lock`, which library crates conventionally gitignore — so `farp` had to pass `skip-audit: true` and ship unaudited. The fallback now runs `[ -f Cargo.lock ] \|\| cargo generate-lockfile` first, so library crates are audited by default. |
+| 6 | Final review | `upload-artifact` had no `if-no-files-found: error` (a docs command writing outside `target/doc` gave a green run and an empty artifact) and used a constant artifact name (a monorepo calling twice would collide). Added the guard and a `docs-artifact-name` input. |
+
+**Deliberately deferred**, recorded rather than silently dropped:
+
+- `farp` lost its per-PR `cargo doc` run; `build-docs` defaults to false and `farp` publishes to docs.rs. Broken intra-doc links will first surface at `cargo publish`.
+- `farp` lost a `cargo tarpaulin` coverage step that ran under `continue-on-error: true` and gated nothing.
+- No Rust fixture covers the *partial-Makefile* case, unlike the Go track's `fixture-partial-make`. The make branch is proven by `octopus` PR #5's logs (`CMD: make clippy`, `CMD: make audit`) rather than by `self-test.yml`.
+- No `cargo-flags` escape hatch, so a crate with mutually exclusive features cannot use `--all-features` without adding a Makefile.
+- `dtolnay/rust-toolchain@master` is a moving branch on a third-party action, now at five sites plus `octopus-checks`.
+
 ## Follow-up, explicitly not in this plan
 
 - **Phase 3 — Node/TypeScript**, six repos (`forge-js`, `stockgist`, `tkm`, `tkm-website`, `website`, `xraph`), predominantly private Next.js applications needing CI and deploy rather than npm publishing.
