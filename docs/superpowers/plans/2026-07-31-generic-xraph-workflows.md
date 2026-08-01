@@ -948,7 +948,52 @@ done
 
 Expected: `vessel` at `v1.0.2` with `go 1.25.0`; `go-utils` at `v1.1.3` with `go 1.25.0`. Both have Makefiles.
 
-- [ ] **Step 2: Verify both pass the shared checks locally**
+- [ ] **Step 2: Create a reachable baseline tag in each repo — do this BEFORE migrating**
+
+Without this step, both repos will be released as `v1.0.0`: colliding with `vessel`'s existing `v1.0.0` tag, and regressing `go-utils` from `v1.1.3`.
+
+**Why.** semantic-release computes the next version from the most recent tag **reachable from the release branch**. The old `auto-release.yml` created a `chore: Update CHANGELOG.md for vX` commit, tagged *that* commit, and never merged it into `main` — so every legacy tag sits on an orphaned commit. `confy` hit exactly this and jumped from `v0.5.2` to `v1.0.0`. Confirm the defect is present before acting on it:
+
+```bash
+for r in vessel go-utils; do
+  cd "/Users/rexraphael/Work/xraph/$r"
+  echo "=== $r ==="
+  git fetch --tags --quiet
+  for t in $(git tag -l | sort -V | tail -3); do
+    printf "  %-10s ancestor-of-main: " "$t"
+    git merge-base --is-ancestor "$t^{commit}" origin/main 2>/dev/null && echo YES || echo NO
+  done
+done
+```
+
+Expected: every tag reports `NO`. If any reports `YES`, that repo does **not** need this step — skip it and say so in your report.
+
+Create a baseline one patch above each repo's current highest version, on the current `main` HEAD. This rewrites no published tag; it only gives semantic-release a reachable starting point.
+
+```bash
+cd /Users/rexraphael/Work/xraph/vessel
+git checkout main && git pull
+git tag -a v1.0.3 -m "Baseline tag for semantic-release migration"
+git push origin v1.0.3
+
+cd /Users/rexraphael/Work/xraph/go-utils
+git checkout main && git pull
+git tag -a v1.1.4 -m "Baseline tag for semantic-release migration"
+git push origin v1.1.4
+```
+
+Verify each new tag is reachable, which is the whole point:
+
+```bash
+cd /Users/rexraphael/Work/xraph/vessel && git merge-base --is-ancestor v1.0.3^{commit} origin/main && echo "vessel baseline reachable"
+cd /Users/rexraphael/Work/xraph/go-utils && git merge-base --is-ancestor v1.1.4^{commit} origin/main && echo "go-utils baseline reachable"
+```
+
+Both must print the confirmation. After migration, a `fix:` merge takes `vessel` to `v1.0.4` and `go-utils` to `v1.1.5`; a `feat:` takes them to `v1.1.0` and `v1.2.0`.
+
+These baseline tags create no GitHub release and publish nothing — they are git tags only. The Go module proxy will serve them if asked, which is harmless: they point at `main` HEAD, which is exactly what the previous tag should have pointed at.
+
+- [ ] **Step 3: Verify both pass the shared checks locally**
 
 ```bash
 for r in vessel go-utils; do
@@ -963,7 +1008,7 @@ done
 
 Expected: no `gofmt` output, all commands exit 0. Fix failures in their own commits first.
 
-- [ ] **Step 3: Apply the migration to `vessel`**
+- [ ] **Step 4: Apply the migration to `vessel`**
 
 None of these files contains a repository name — the module path is derived from `github.repository` — so the same four files apply to both repos verbatim.
 
@@ -1098,7 +1143,7 @@ git rm .github/workflows/auto-release.yml
 
 Expected: exit 0.
 
-- [ ] **Step 4: Push `vessel` and merge** — CONFIRM FIRST
+- [ ] **Step 5: Push `vessel` and merge** — CONFIRM FIRST
 
 ```bash
 cd /Users/rexraphael/Work/xraph/vessel
@@ -1110,15 +1155,15 @@ gh pr checks --watch
 gh pr merge --squash --delete-branch
 ```
 
-- [ ] **Step 5: Apply the same migration to `go-utils`** — CONFIRM FIRST
+- [ ] **Step 6: Apply the same migration to `go-utils`** — CONFIRM FIRST
 
-`go-utils` also declares `go 1.25.0`, so **all four files are byte-identical to the ones written for `vessel` in Step 3** — including `go-versions: '["1.25","1.26"]'`. Write the same `.releaserc.json`, `ci.yml`, `release.yml` and `codeql.yml` shown in Step 3 into `/Users/rexraphael/Work/xraph/go-utils`.
+`go-utils` also declares `go 1.25.0`, so **all four files are byte-identical to the ones written for `vessel` in Step 4** — including `go-versions: '["1.25","1.26"]'`. Write the same `.releaserc.json`, `ci.yml`, `release.yml` and `codeql.yml` shown in Step 3 into `/Users/rexraphael/Work/xraph/go-utils`.
 
 ```bash
 cd /Users/rexraphael/Work/xraph/go-utils
 git checkout -b ci/shared-workflows
 mkdir -p .github/workflows
-# write the four files exactly as in Step 3
+# write the four files exactly as in Step 4
 git rm .github/workflows/auto-release.yml
 "$(go env GOPATH)/bin/actionlint" -color; echo "exit=$?"
 git add -A
@@ -1131,7 +1176,7 @@ gh pr merge --squash --delete-branch
 
 Expected: `actionlint` exit 0, CI and CodeQL green on the PR.
 
-- [ ] **Step 6: Confirm the end state across all four Go repos**
+- [ ] **Step 7: Confirm the end state across all four Go repos**
 
 ```bash
 for r in dtl confy vessel go-utils; do
