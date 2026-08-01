@@ -970,7 +970,17 @@ Executed. `rust-ci.yml` shipped in `xraph/workflows` `v1.6.0`, hardened in `v1.7
 | 5 | Final review | `cargo-audit` needs a `Cargo.lock`, which library crates conventionally gitignore — so `farp` had to pass `skip-audit: true` and ship unaudited. The fallback now runs `[ -f Cargo.lock ] \|\| cargo generate-lockfile` first, so library crates are audited by default. |
 | 6 | Final review | `upload-artifact` had no `if-no-files-found: error` (a docs command writing outside `target/doc` gave a green run and an empty artifact) and used a constant artifact name (a monorepo calling twice would collide). Added the guard and a `docs-artifact-name` input. |
 
-**Deliberately deferred**, recorded rather than silently dropped:
+### Deferred items, subsequently closed
+
+| item | resolution |
+|---|---|
+| `octopus` `main` red, PR #5 unmerged | Fixed both causes and merged. The clippy failure was `question_mark` firing only under **clippy 1.97** (CI's stable) while local was 1.96 — a new-lint-on-toolchain-bump, not stale code. Replaced the explicit `return None` with `?`; 84 router tests pass. `crossbeam-epoch 0.9.18 → 0.9.20` cleared RUSTSEC-2026-0204. Merged as `xraph/octopus` PR #6, then PR #5 rebased onto the green base and merged — removing 149 lines from octopus's CI. |
+| No Rust partial-Makefile fixture | Added `testdata/fixture-rust-make` (defines `fmt` and `test`, deliberately not `clippy`/`audit`/`build`/`docs`) plus a smoke job. The run log now shows the mixed resolution directly: `Makefile target fmt`, `Makefile target test`, `fallback cargo clippy`, `fallback cargo audit`, `fallback cargo build`. Shipped `v1.8.0`. |
+| No `cargo-flags` escape hatch | Added; threaded through every fallback so a crate with mutually exclusive features can pass `--features x` instead of being forced to add a Makefile. Shipped `v1.8.0`. |
+| `farp` lost per-PR `cargo doc` | Restored via `build-docs: true` with `docs-artifact-name: farp-rust-docs`. |
+| `farp` shipped unaudited (`skip-audit: true`) | Removed. The `v1.7.0` lockfile-generation fix means `cargo audit` now runs on `farp-rust` despite its gitignored `Cargo.lock` — verified green in production. |
+
+**Still deferred**, recorded rather than silently dropped:
 
 - `farp` lost its per-PR `cargo doc` run; `build-docs` defaults to false and `farp` publishes to docs.rs. Broken intra-doc links will first surface at `cargo publish`.
 - `farp` lost a `cargo tarpaulin` coverage step that ran under `continue-on-error: true` and gated nothing.
