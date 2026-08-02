@@ -1,3 +1,9 @@
+## [1.2.1](https://github.com/xraph/dtl/compare/v1.2.0...v1.2.1) (2026-08-02)
+
+### Documentation
+
+* DTL is Data Transformation Language ([666e5c2](https://github.com/xraph/dtl/commit/666e5c242f1876e0c61ef5ab36688b4a83c13d83))
+
 ## [1.2.0](https://github.com/xraph/dtl/compare/v1.1.1...v1.2.0) (2026-08-02)
 
 ### Features
