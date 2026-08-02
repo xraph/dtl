@@ -107,6 +107,9 @@ func expandDottedPath(source string, position int) string {
 
 // builtinDocs returns documentation for known builtin functions.
 func builtinDocs(name string) string {
+	// #nosec G101 -- these are documentation strings for builtin functions, not
+	// credentials. The scanner matches on entries describing the secrets and
+	// env builtins; the values are help text shown in an editor tooltip.
 	docs := map[string]string{
 		// Core
 		"len":       "len(x) -> int -- Returns the length of a string, array, or object",
