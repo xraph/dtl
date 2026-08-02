@@ -1,3 +1,9 @@
+## [1.1.1](https://github.com/xraph/dtl/compare/v1.1.0...v1.1.1) (2026-08-02)
+
+### Documentation
+
+* say the name is not an acronym ([5b6f03c](https://github.com/xraph/dtl/commit/5b6f03cfef7d13c51eb80b515524c06d88e4074d))
+
 ## [1.1.0](https://github.com/xraph/dtl/compare/v1.0.1...v1.1.0) (2026-08-02)
 
 ### Features
