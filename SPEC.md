@@ -1,6 +1,6 @@
 # DTL Language Specification
 
-DTL is a small, embeddable expression and function
+DTL — Data Transformation Language — is a small, embeddable expression and function
 language. This document defines the language itself: its syntax, semantics,
 type system, and pure standard library.
 

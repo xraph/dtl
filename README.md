@@ -1,4 +1,4 @@
-# DTL
+# DTL — Data Transformation Language
 
 A small, embeddable programming language for expressions and user-defined
 functions, written in Go. DTL is designed to be readable by analysts and
@@ -19,9 +19,9 @@ fn classify_temperature(temp: float, unit: string = "celsius") -> string:
 
 See [SPEC.md](SPEC.md) for the full language definition.
 
-> **On the name.** DTL is a name, not an acronym — there is no expansion you
-> are missing. It is a general-purpose expression language; the host supplies
-> the vocabulary of whatever domain it is embedded in.
+> **On the name.** DTL is *Data Transformation Language*. It transforms data
+> the host hands it and assumes no domain of its own — the companion to DQL,
+> Data Query Language: one queries, one transforms.
 
 ## Install
 
