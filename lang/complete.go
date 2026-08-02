@@ -56,11 +56,19 @@ func Complete(source string, position int, ctx Context) []Item {
 	}
 
 	for _, ds := range ctx.Datasets {
+		detail := ds.Detail
+		if detail == "" {
+			detail = "dataset"
+		}
+		insert := ds.InsertText
+		if insert == "" {
+			insert = ds.Name
+		}
 		items = append(items, Item{
-			Label:      ds,
+			Label:      ds.Name,
 			Kind:       KindVariable,
-			Detail:     "dataset",
-			InsertText: `"` + ds + `"`,
+			Detail:     detail,
+			InsertText: insert,
 		})
 	}
 

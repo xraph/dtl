@@ -51,13 +51,23 @@ type Global struct {
 	Keys []string
 }
 
+// Dataset is a named data source the host offers as a completion. Detail and
+// InsertText are the host's, because how a dataset is referenced in source is
+// the host's convention, not the language's — one platform writes
+// query("name"), another writes a bare identifier.
+type Dataset struct {
+	Name       string
+	Detail     string
+	InsertText string
+}
+
 // Context carries host knowledge into a completion or hover request. Every
 // field is optional: an empty Context yields language-only results — keywords,
 // types and whatever the caller passed — which is exactly what an editor with
 // no server reachable should still get.
 type Context struct {
 	Functions []Function
-	Datasets  []string
+	Datasets  []Dataset
 	Globals   []Global
 }
 

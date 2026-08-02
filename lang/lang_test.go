@@ -99,15 +99,36 @@ func TestComplete_globalKeysBecomeDottedProperties(t *testing.T) {
 	}
 }
 
-func TestComplete_datasetsInsertAsQuotedStrings(t *testing.T) {
-	// A dataset name is used as a string argument, so the insert text has to
-	// carry its quotes or the completion produces a syntax error.
-	items := Complete("", 0, Context{Datasets: []string{"sensor_readings"}})
+func TestComplete_datasetsUseTheHostsReferenceConvention(t *testing.T) {
+	// How a dataset is written in source is the host's convention. The
+	// language must pass it through rather than inventing one, or the
+	// completion inserts something that does not parse.
+	items := Complete("", 0, Context{Datasets: []Dataset{{
+		Name:       "sensor_readings",
+		Detail:     "dataset (workspace)",
+		InsertText: `query("sensor_readings")`,
+	}}})
 
 	for _, it := range items {
 		if it.Label == "sensor_readings" {
-			if it.InsertText != `"sensor_readings"` {
-				t.Errorf("dataset insert text = %q, want it quoted", it.InsertText)
+			if it.InsertText != `query("sensor_readings")` {
+				t.Errorf("insert text = %q, want the host's form", it.InsertText)
+			}
+			if it.Detail != "dataset (workspace)" {
+				t.Errorf("detail = %q, want the host's", it.Detail)
+			}
+			return
+		}
+	}
+	t.Error("dataset was not offered")
+}
+
+func TestComplete_datasetDefaultsWhenHostGivesNoConvention(t *testing.T) {
+	items := Complete("", 0, Context{Datasets: []Dataset{{Name: "plain"}}})
+	for _, it := range items {
+		if it.Label == "plain" {
+			if it.InsertText != "plain" || it.Detail != "dataset" {
+				t.Errorf("defaults wrong: insert=%q detail=%q", it.InsertText, it.Detail)
 			}
 			return
 		}
