@@ -1,22 +1,51 @@
 {
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "dtl",
+  "displayName": "Data Transformation Language",
   "scopeName": "source.dtl",
-  "fileTypes": ["dtl"],
+  "fileTypes": [
+    "dtl"
+  ],
   "patterns": [
-    { "include": "#comments" },
-    { "include": "#strings" },
-    { "include": "#numbers" },
-    { "include": "#function-decl" },
-    { "include": "#use-stmt" },
-    { "include": "#type-decl" },
-    { "include": "#keywords" },
-    { "include": "#types" },
-    { "include": "#operators" },
-    { "include": "#namespaced-call" },
-    { "include": "#function-call" },
-    { "include": "#identifiers" },
-    { "include": "#punctuation" }
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#function-decl"
+    },
+    {
+      "include": "#use-stmt"
+    },
+    {
+      "include": "#type-decl"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#operators"
+    },
+    {
+      "include": "#namespaced-call"
+    },
+    {
+      "include": "#function-call"
+    },
+    {
+      "include": "#identifiers"
+    },
+    {
+      "include": "#punctuation"
+    }
   ],
   "repository": {
     "comments": {
@@ -29,7 +58,11 @@
           "name": "comment.block.dtl",
           "begin": "\\{-",
           "end": "-\\}",
-          "patterns": [{ "include": "#comments" }]
+          "patterns": [
+            {
+              "include": "#comments"
+            }
+          ]
         }
       ]
     },
@@ -38,10 +71,14 @@
       "begin": "\"",
       "end": "\"",
       "beginCaptures": {
-        "0": { "name": "punctuation.definition.string.begin.dtl" }
+        "0": {
+          "name": "punctuation.definition.string.begin.dtl"
+        }
       },
       "endCaptures": {
-        "0": { "name": "punctuation.definition.string.end.dtl" }
+        "0": {
+          "name": "punctuation.definition.string.end.dtl"
+        }
       },
       "patterns": [
         {
@@ -53,19 +90,37 @@
           "begin": "\\{",
           "end": "\\}",
           "beginCaptures": {
-            "0": { "name": "punctuation.section.embedded.begin.dtl" }
+            "0": {
+              "name": "punctuation.section.embedded.begin.dtl"
+            }
           },
           "endCaptures": {
-            "0": { "name": "punctuation.section.embedded.end.dtl" }
+            "0": {
+              "name": "punctuation.section.embedded.end.dtl"
+            }
           },
           "patterns": [
-            { "include": "#strings" },
-            { "include": "#numbers" },
-            { "include": "#keywords" },
-            { "include": "#operators" },
-            { "include": "#namespaced-call" },
-            { "include": "#function-call" },
-            { "include": "#identifiers" }
+            {
+              "include": "#strings"
+            },
+            {
+              "include": "#numbers"
+            },
+            {
+              "include": "#keywords"
+            },
+            {
+              "include": "#operators"
+            },
+            {
+              "include": "#namespaced-call"
+            },
+            {
+              "include": "#function-call"
+            },
+            {
+              "include": "#identifiers"
+            }
           ]
         }
       ]
@@ -85,23 +140,37 @@
     "function-decl": {
       "match": "\\b(fn)\\s+([A-Za-z_][\\w]*(?::[A-Za-z_][\\w]*)?(?:::[A-Za-z_][\\w]*)+)",
       "captures": {
-        "1": { "name": "storage.type.function.dtl" },
-        "2": { "name": "entity.name.function.dtl" }
+        "1": {
+          "name": "storage.type.function.dtl"
+        },
+        "2": {
+          "name": "entity.name.function.dtl"
+        }
       }
     },
     "use-stmt": {
       "match": "\\b(use)\\s+([A-Za-z_][\\w]*)",
       "captures": {
-        "1": { "name": "keyword.control.import.dtl" },
-        "2": { "name": "entity.name.namespace.dtl" }
+        "1": {
+          "name": "keyword.control.import.dtl"
+        },
+        "2": {
+          "name": "entity.name.namespace.dtl"
+        }
       }
     },
     "type-decl": {
       "match": "\\b(type)\\s+([A-Z][\\w]*)\\s*(=)?",
       "captures": {
-        "1": { "name": "storage.type.dtl" },
-        "2": { "name": "entity.name.type.dtl" },
-        "3": { "name": "keyword.operator.assignment.dtl" }
+        "1": {
+          "name": "storage.type.dtl"
+        },
+        "2": {
+          "name": "entity.name.type.dtl"
+        },
+        "3": {
+          "name": "keyword.operator.assignment.dtl"
+        }
       }
     },
     "keywords": {
@@ -207,14 +276,20 @@
     "namespaced-call": {
       "match": "\\b([a-zA-Z_][\\w]*(?::[a-zA-Z_][\\w]*)?)::([a-zA-Z_][\\w]*)\\s*(?=\\()",
       "captures": {
-        "1": { "name": "entity.name.namespace.dtl" },
-        "2": { "name": "entity.name.function.dtl" }
+        "1": {
+          "name": "entity.name.namespace.dtl"
+        },
+        "2": {
+          "name": "entity.name.function.dtl"
+        }
       }
     },
     "function-call": {
       "match": "\\b([a-zA-Z_][\\w]*)\\s*(?=\\()",
       "captures": {
-        "1": { "name": "entity.name.function.call.dtl" }
+        "1": {
+          "name": "entity.name.function.call.dtl"
+        }
       }
     },
     "identifiers": {

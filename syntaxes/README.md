@@ -37,6 +37,35 @@ Reference them from an extension's `package.json`:
 Pair it with [`cmd/dtl-lsp`](../cmd/dtl-lsp) and you have highlighting,
 completion, hover and diagnostics with no bespoke client code.
 
+## Shiki
+
+[Shiki](https://shiki.style) renders TextMate grammars, so this file works as a
+custom language with no conversion:
+
+```js
+import { createHighlighter } from 'shiki'
+import grammar from 'dtl/syntaxes/dtl.tmLanguage.json' with { type: 'json' }
+
+const highlighter = await createHighlighter({
+  themes: ['github-dark'],
+  langs: [grammar],
+})
+
+const html = highlighter.codeToHtml('fn double(x: float) -> float => x * 2', {
+  lang: 'dtl',
+  theme: 'github-dark',
+})
+```
+
+The grammar carries `name`, `displayName` (`Data Transformation Language`) and `fileTypes`, which is
+what Shiki reads when registering it. It carries no `aliases`: an alias equal to
+the language name is a self-reference, and Shiki rejects that outright with
+`Circular alias \`dtl -> dtl\``.
+
+This is how docs sites highlight these languages — Astro Starlight, VitePress,
+Nuxt Content and Docusaurus all render through Shiki, so passing the grammar
+once is the whole integration.
+
 ## Other editors
 
 - **Sublime Text** — reads `.tmLanguage.json` directly; drop it in a package.
