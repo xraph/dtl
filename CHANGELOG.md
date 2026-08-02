@@ -1,3 +1,9 @@
+## [1.3.0](https://github.com/xraph/dtl/compare/v1.2.1...v1.3.0) (2026-08-02)
+
+### Features
+
+* **syntaxes:** register cleanly with Shiki ([b4067db](https://github.com/xraph/dtl/commit/b4067db13f4dccffbb719b736b9ca3689a02a6ac))
+
 ## [1.2.1](https://github.com/xraph/dtl/compare/v1.2.0...v1.2.1) (2026-08-02)
 
 ### Documentation
