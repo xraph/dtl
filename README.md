@@ -19,6 +19,10 @@ fn classify_temperature(temp: float, unit: string = "celsius") -> string:
 
 See [SPEC.md](SPEC.md) for the full language definition.
 
+> **On the name.** DTL is a name, not an acronym — there is no expansion you
+> are missing. It is a general-purpose expression language; the host supplies
+> the vocabulary of whatever domain it is embedded in.
+
 ## Install
 
 ```bash
