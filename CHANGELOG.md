@@ -1,3 +1,9 @@
+## [1.2.0](https://github.com/xraph/dtl/compare/v1.1.1...v1.2.0) (2026-08-02)
+
+### Features
+
+* **syntaxes:** ship the TextMate grammar with the language ([c07b8a1](https://github.com/xraph/dtl/commit/c07b8a1493cf0afe91989b0e64f9392b7a807f2d))
+
 ## [1.1.1](https://github.com/xraph/dtl/compare/v1.1.0...v1.1.1) (2026-08-02)
 
 ### Documentation
