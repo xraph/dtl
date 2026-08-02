@@ -108,6 +108,25 @@ DTL has been in production use as an embedded language before being published
 here as a standalone project. The language and its specification are frozen
 across that move — behavior is unchanged, and the git history predates it.
 
+## Editor support
+
+Highlighting and language intelligence both ship with the language, so an
+editor needs no bespoke client code:
+
+| Want | Use |
+|------|-----|
+| Syntax highlighting | [`syntaxes/`](syntaxes/) — TextMate grammar, scope `source.dtl` |
+| Completion, hover, diagnostics | [`cmd/dtl-lsp`](cmd/dtl-lsp) — a Language Server Protocol server |
+| To build your own | [`lang`](lang/) — the same features as plain functions |
+
+```bash
+go install github.com/xraph/dtl/cmd/dtl-lsp@latest
+```
+
+The server works on a file on disk with nothing else running. A host that knows
+more — which datasets exist, which functions are registered — passes that in and
+gets richer completions; without it, the language itself is still there.
+
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE), [NOTICE](NOTICE), and

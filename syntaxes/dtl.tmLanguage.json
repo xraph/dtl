@@ -1,0 +1,261 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "dtl",
+  "scopeName": "source.dtl",
+  "fileTypes": ["dtl"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#function-decl" },
+    { "include": "#use-stmt" },
+    { "include": "#type-decl" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#operators" },
+    { "include": "#namespaced-call" },
+    { "include": "#function-call" },
+    { "include": "#identifiers" },
+    { "include": "#punctuation" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-dash.dtl",
+          "match": "--.*$"
+        },
+        {
+          "name": "comment.block.dtl",
+          "begin": "\\{-",
+          "end": "-\\}",
+          "patterns": [{ "include": "#comments" }]
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.dtl",
+      "begin": "\"",
+      "end": "\"",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.string.begin.dtl" }
+      },
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.string.end.dtl" }
+      },
+      "patterns": [
+        {
+          "name": "constant.character.escape.dtl",
+          "match": "\\\\(n|t|r|\\\\|\"|\\{)"
+        },
+        {
+          "name": "meta.embedded.expression.dtl",
+          "begin": "\\{",
+          "end": "\\}",
+          "beginCaptures": {
+            "0": { "name": "punctuation.section.embedded.begin.dtl" }
+          },
+          "endCaptures": {
+            "0": { "name": "punctuation.section.embedded.end.dtl" }
+          },
+          "patterns": [
+            { "include": "#strings" },
+            { "include": "#numbers" },
+            { "include": "#keywords" },
+            { "include": "#operators" },
+            { "include": "#namespaced-call" },
+            { "include": "#function-call" },
+            { "include": "#identifiers" }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.dtl",
+          "match": "\\b\\d+\\.\\d+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.dtl",
+          "match": "\\b\\d+\\b"
+        }
+      ]
+    },
+    "function-decl": {
+      "match": "\\b(fn)\\s+([A-Za-z_][\\w]*(?::[A-Za-z_][\\w]*)?(?:::[A-Za-z_][\\w]*)+)",
+      "captures": {
+        "1": { "name": "storage.type.function.dtl" },
+        "2": { "name": "entity.name.function.dtl" }
+      }
+    },
+    "use-stmt": {
+      "match": "\\b(use)\\s+([A-Za-z_][\\w]*)",
+      "captures": {
+        "1": { "name": "keyword.control.import.dtl" },
+        "2": { "name": "entity.name.namespace.dtl" }
+      }
+    },
+    "type-decl": {
+      "match": "\\b(type)\\s+([A-Z][\\w]*)\\s*(=)?",
+      "captures": {
+        "1": { "name": "storage.type.dtl" },
+        "2": { "name": "entity.name.type.dtl" },
+        "3": { "name": "keyword.operator.assignment.dtl" }
+      }
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.conditional.dtl",
+          "match": "\\b(if|then|else|match|when)\\b"
+        },
+        {
+          "name": "keyword.control.exception.dtl",
+          "match": "\\b(try|catch|raise)\\b"
+        },
+        {
+          "name": "keyword.control.flow.dtl",
+          "match": "\\b(return|for|in)\\b"
+        },
+        {
+          "name": "storage.type.dtl",
+          "match": "\\b(fn|let|record|type|use)\\b"
+        },
+        {
+          "name": "keyword.operator.logical.word.dtl",
+          "match": "\\b(and|or|not)\\b"
+        },
+        {
+          "name": "constant.language.boolean.dtl",
+          "match": "\\b(true|false)\\b"
+        },
+        {
+          "name": "constant.language.null.dtl",
+          "match": "\\b(null)\\b"
+        },
+        {
+          "name": "support.function.builtin.query.dtl",
+          "match": "\\b(query)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "types": {
+      "name": "support.type.primitive.dtl",
+      "match": "\\b(int|float|string|bool|datetime|object|any)\\b"
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.arrow.fat.dtl",
+          "match": "=>"
+        },
+        {
+          "name": "keyword.operator.arrow.thin.dtl",
+          "match": "->"
+        },
+        {
+          "name": "keyword.operator.range.dtl",
+          "match": "\\.\\."
+        },
+        {
+          "name": "keyword.operator.spread.dtl",
+          "match": "\\.\\.\\."
+        },
+        {
+          "name": "keyword.operator.null-coalesce.dtl",
+          "match": "\\?\\?"
+        },
+        {
+          "name": "keyword.operator.optional-chain.dtl",
+          "match": "\\?\\."
+        },
+        {
+          "name": "keyword.operator.namespace.dtl",
+          "match": "::"
+        },
+        {
+          "name": "keyword.operator.concat.dtl",
+          "match": "\\+\\+"
+        },
+        {
+          "name": "keyword.operator.pipe.dtl",
+          "match": "\\|(?!\\|)"
+        },
+        {
+          "name": "keyword.operator.comparison.dtl",
+          "match": "(==|!=|<=|>=|<|>)"
+        },
+        {
+          "name": "keyword.operator.logical.dtl",
+          "match": "(&&|\\|\\||!)"
+        },
+        {
+          "name": "keyword.operator.arithmetic.dtl",
+          "match": "[+\\-*/%]"
+        },
+        {
+          "name": "keyword.operator.assignment.dtl",
+          "match": "="
+        },
+        {
+          "name": "keyword.operator.optional.dtl",
+          "match": "\\?"
+        }
+      ]
+    },
+    "namespaced-call": {
+      "match": "\\b([a-zA-Z_][\\w]*(?::[a-zA-Z_][\\w]*)?)::([a-zA-Z_][\\w]*)\\s*(?=\\()",
+      "captures": {
+        "1": { "name": "entity.name.namespace.dtl" },
+        "2": { "name": "entity.name.function.dtl" }
+      }
+    },
+    "function-call": {
+      "match": "\\b([a-zA-Z_][\\w]*)\\s*(?=\\()",
+      "captures": {
+        "1": { "name": "entity.name.function.call.dtl" }
+      }
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "name": "variable.parameter.query.dtl",
+          "match": "\\$[a-zA-Z_][\\w]*"
+        },
+        {
+          "name": "variable.other.dtl",
+          "match": "\\b[a-zA-Z_][\\w]*\\b"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.section.parens.dtl",
+          "match": "[()]"
+        },
+        {
+          "name": "punctuation.section.brackets.dtl",
+          "match": "[\\[\\]]"
+        },
+        {
+          "name": "punctuation.section.braces.dtl",
+          "match": "[{}]"
+        },
+        {
+          "name": "punctuation.separator.comma.dtl",
+          "match": ","
+        },
+        {
+          "name": "punctuation.separator.colon.dtl",
+          "match": ":"
+        },
+        {
+          "name": "punctuation.accessor.dtl",
+          "match": "\\."
+        }
+      ]
+    }
+  }
+}
