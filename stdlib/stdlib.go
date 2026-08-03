@@ -2,11 +2,41 @@ package stdlib
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/xraph/dtl/executor"
 )
 
+var (
+	sharedOnce sync.Once
+	sharedTbl  map[string]*executor.BuiltinFunc
+)
+
+// Shared returns the standard library's builtin table, built once per process
+// and reused by every registry.
+//
+// Building it costs ~22us and several hundred allocations, and a registry that
+// rebuilt it paid that on construction. Nothing about a BuiltinFunc is
+// per-registry — they close over no registry state — so there is no reason for
+// each one to own a copy. A host that creates a registry per tenant or per
+// request was paying this repeatedly for an identical result.
+//
+// The returned map MUST NOT be mutated: it is shared by every registry in the
+// process, and a write here would be visible to all of them (and would race
+// with concurrent lookups). Registry keeps host-registered builtins in a
+// separate overlay for exactly this reason — see Registry.RegisterBuiltin.
+func Shared() map[string]*executor.BuiltinFunc {
+	sharedOnce.Do(func() {
+		tbl := make(map[string]*executor.BuiltinFunc, 512)
+		RegisterAll(tbl)
+		sharedTbl = tbl
+	})
+	return sharedTbl
+}
+
 // RegisterAll registers all standard library functions into the builtins map.
+//
+// Prefer Shared unless you need a table you own and intend to modify.
 func RegisterAll(builtins map[string]*executor.BuiltinFunc) {
 	registerCore(builtins)
 	registerMath(builtins)

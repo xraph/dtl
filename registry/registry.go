@@ -76,7 +76,13 @@ type FunctionLoader func(ctx context.Context, fullName string) (string, error)
 // Registry is the in-memory compiled function cache and execution engine.
 // It owns the compiler, executor, and built-in function table.
 type Registry struct {
+	// builtins is stdlib.Shared: read-only and shared process-wide.
 	builtins map[string]*executor.BuiltinFunc
+
+	// overrides holds host-registered builtins for this registry alone, and is
+	// nil until RegisterBuiltin is called.
+	overrides map[string]*executor.BuiltinFunc
+
 	compiled map[string]*executor.CompiledFunction
 	mu       sync.RWMutex
 	executor *executor.Executor
@@ -86,8 +92,10 @@ type Registry struct {
 
 // New creates a registry with stdlib loaded and ready for function registration.
 func New(config Config) *Registry {
-	builtins := make(map[string]*executor.BuiltinFunc)
-	stdlib.RegisterAll(builtins)
+	// The standard library is process-wide and immutable, so this costs a map
+	// read rather than rebuilding several hundred BuiltinFunc values. Anything
+	// the host registers goes into r.overrides, never into the shared table.
+	builtins := stdlib.Shared()
 
 	r := &Registry{
 		builtins: builtins,
@@ -108,8 +116,8 @@ func New(config Config) *Registry {
 
 // ResolveFunction checks if a function name is known (built-in or user-defined).
 func (r *Registry) ResolveFunction(name string) (int, bool) {
-	// Check builtins
-	if bf, ok := r.builtins[name]; ok {
+	// Check builtins — host registrations shadow the shared standard library.
+	if bf, ok := r.lookupBuiltin(name); ok {
 		return bf.MinArgs, true
 	}
 	// Check compiled user functions
@@ -124,8 +132,13 @@ func (r *Registry) ResolveFunction(name string) (int, bool) {
 // ListFunctionNames returns all known function names (built-in and user-defined).
 // Implements compiler.FunctionLister for "did you mean?" suggestions.
 func (r *Registry) ListFunctionNames() []string {
-	names := make([]string, 0, len(r.builtins))
+	names := make([]string, 0, len(r.builtins)+len(r.overrides))
 	for name := range r.builtins {
+		if _, shadowed := r.overrides[name]; !shadowed {
+			names = append(names, name)
+		}
+	}
+	for name := range r.overrides {
 		names = append(names, name)
 	}
 	r.mu.RLock()
@@ -242,9 +255,20 @@ func (rr *registerResolver) ResolveFunction(name string) (int, bool) {
 	return 0, false
 }
 
-// RegisterBuiltin adds a Go-implemented function to the built-in table.
+// RegisterBuiltin adds a Go-implemented function, visible to this registry
+// only. A name already in the standard library is shadowed rather than
+// replaced, so other registries in the process are unaffected.
+//
+// Not safe against concurrent execution: call it during setup, before the
+// registry is used. That was already the contract when this wrote straight
+// into the builtin map.
 func (r *Registry) RegisterBuiltin(name string, bf *executor.BuiltinFunc) {
-	r.builtins[name] = bf
+	if r.overrides == nil {
+		r.overrides = make(map[string]*executor.BuiltinFunc, 8)
+	}
+	r.overrides[name] = bf
+	// The executor resolves builtins itself, so it needs the same registration.
+	r.executor.RegisterBuiltin(name, bf)
 }
 
 // Invalidate removes a compiled function from the cache.
@@ -400,8 +424,41 @@ func (r *Registry) ValidateWithLookup(source string, lookup func(string) (int, b
 // --- Accessors ---
 
 // GetBuiltins returns the built-in function table (read-only use).
+//
+// The result is a fresh map combining the shared standard library with this
+// registry's own registrations, so mutating it affects nothing. It is built
+// per call — this is an introspection accessor, not an execution path; the
+// executor resolves builtins without materialising a combined table.
 func (r *Registry) GetBuiltins() map[string]*executor.BuiltinFunc {
-	return r.builtins
+	if len(r.overrides) == 0 {
+		// Still a copy: the shared table must not escape somewhere it could be
+		// written to.
+		out := make(map[string]*executor.BuiltinFunc, len(r.builtins))
+		for name, bf := range r.builtins {
+			out[name] = bf
+		}
+		return out
+	}
+	out := make(map[string]*executor.BuiltinFunc, len(r.builtins)+len(r.overrides))
+	for name, bf := range r.builtins {
+		out[name] = bf
+	}
+	for name, bf := range r.overrides {
+		out[name] = bf
+	}
+	return out
+}
+
+// lookupBuiltin resolves against this registry's own registrations first, then
+// the shared standard library.
+func (r *Registry) lookupBuiltin(name string) (*executor.BuiltinFunc, bool) {
+	if r.overrides != nil {
+		if bf, ok := r.overrides[name]; ok {
+			return bf, true
+		}
+	}
+	bf, ok := r.builtins[name]
+	return bf, ok
 }
 
 // ListCompiled returns all currently compiled function names.

@@ -102,17 +102,55 @@ type ExecConfig struct {
 
 // Executor evaluates compiled DTL AST nodes via tree-walking.
 type Executor struct {
+	// builtins is the base table. It may be shared with other executors — see
+	// stdlib.Shared — so it is only ever read.
 	builtins map[string]*BuiltinFunc
-	lookup   FunctionLookup
-	config   ExecConfig
+
+	// overrides holds builtins registered against this executor alone, and is
+	// nil until one is. Keeping them separate is what lets the base table be
+	// shared: a host registering "store::get" must not add it to every other
+	// registry in the process.
+	overrides map[string]*BuiltinFunc
+
+	lookup FunctionLookup
+	config ExecConfig
 }
 
 // New creates an executor with the given built-ins and function resolver.
+//
+// builtins is not copied and must not be mutated afterwards; use
+// RegisterBuiltin to add to this executor without touching a shared table.
 func New(builtins map[string]*BuiltinFunc, lookup FunctionLookup, config ExecConfig) *Executor {
 	if builtins == nil {
 		builtins = make(map[string]*BuiltinFunc)
 	}
 	return &Executor{builtins: builtins, lookup: lookup, config: config}
+}
+
+// RegisterBuiltin adds a builtin visible only to this executor, shadowing any
+// same-named entry in the base table.
+//
+// Not safe against concurrent execution: call it during setup, before the
+// executor is used. That was already the contract when the builtin table was
+// written directly.
+func (ex *Executor) RegisterBuiltin(name string, bf *BuiltinFunc) {
+	if ex.overrides == nil {
+		ex.overrides = make(map[string]*BuiltinFunc, 8)
+	}
+	ex.overrides[name] = bf
+}
+
+// lookupBuiltin resolves a name against this executor's own registrations
+// first, then the shared base table. The nil check keeps the common case —
+// no host builtins at all — down to a single map probe.
+func (ex *Executor) lookupBuiltin(name string) (*BuiltinFunc, bool) {
+	if ex.overrides != nil {
+		if bf, ok := ex.overrides[name]; ok {
+			return bf, true
+		}
+	}
+	bf, ok := ex.builtins[name]
+	return bf, ok
 }
 
 // Execute runs a compiled function with the given arguments.
@@ -694,7 +732,7 @@ func (ex *Executor) callFunction(ec *evalCtx, name string, args []any) (any, err
 	}
 
 	// Check built-ins first
-	if bf, ok := ex.builtins[name]; ok {
+	if bf, ok := ex.lookupBuiltin(name); ok {
 		if bf.MinArgs >= 0 && len(args) < bf.MinArgs {
 			return nil, fmt.Errorf("%s: expected at least %d arguments, got %d", name, bf.MinArgs, len(args))
 		}
@@ -736,7 +774,7 @@ func (ex *Executor) resolveViaUses(ec *evalCtx, name string, args []any) (any, e
 	for _, ns := range usesSlice {
 		nsStr := toString(ns)
 		for _, qualified := range []string{"app:" + nsStr + "::" + name, nsStr + "::" + name} {
-			if bf, found := ex.builtins[qualified]; found {
+			if bf, found := ex.lookupBuiltin(qualified); found {
 				if bf.CtxFn != nil {
 					v, err := bf.CtxFn(ec.ctx, args)
 					return v, err, true
