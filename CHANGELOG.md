@@ -1,3 +1,13 @@
+## [1.5.2](https://github.com/xraph/dtl/compare/v1.5.1...v1.5.2) (2026-08-03)
+
+### Performance Improvements
+
+* **executor:** cut per-call overhead from six allocations to two ([4433988](https://github.com/xraph/dtl/commit/4433988cb959221afc106756132dcc906d11eb45))
+
+### Documentation
+
+* **benchmarks:** refresh results after the per-call overhead work ([9a0592b](https://github.com/xraph/dtl/commit/9a0592b5b57787eeccaba93da5dd7dcaaa231a48))
+
 ## [1.5.1](https://github.com/xraph/dtl/compare/v1.5.0...v1.5.1) (2026-08-03)
 
 ### Bug Fixes
