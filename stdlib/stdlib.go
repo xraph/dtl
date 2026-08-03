@@ -17,6 +17,7 @@ func RegisterAll(builtins map[string]*executor.BuiltinFunc) {
 	registerCasting(builtins)
 	registerFormatting(builtins)
 	registerObjects(builtins)
+	registerPath(builtins)
 	registerNamespaceHelpers(builtins)
 }
 

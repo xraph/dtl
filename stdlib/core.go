@@ -18,6 +18,10 @@ func registerCore(m map[string]*executor.BuiltinFunc) {
 		"is_null(x) -> bool -- True when x is null")
 	register(m, "is_blank", 1, 1, fnIsBlank,
 		"is_blank(x) -> bool -- True when x is null, an empty or whitespace-only string, or an empty array or object")
+	register(m, "coalesce", 1, -1, fnCoalesce,
+		"coalesce(a, b, ...) -> any -- First argument that is not null; null when every argument is null")
+	register(m, "default", 2, 2, fnDefault,
+		"default(x, fallback) -> any -- fallback when x is blank (see is_blank), otherwise x")
 	register(m, "to_string", 1, 1, fnToString,
 		"to_string(x) -> string -- String representation of any value")
 	register(m, "abs", 1, 1, fnAbs,
@@ -115,6 +119,35 @@ func fnIsBlank(args []any) (any, error) {
 	default:
 		return false, nil
 	}
+}
+
+// fnCoalesce returns the first argument that is not null.
+//
+// It tests nullness only, never blankness, which is what separates it from
+// default: an empty string or empty array is a real value and stops the search.
+// Reaching for the null-only test is the common case when a field is optional
+// but "" is meaningful.
+func fnCoalesce(args []any) (any, error) {
+	for _, a := range args {
+		if a != nil {
+			return a, nil
+		}
+	}
+	return nil, nil
+}
+
+// fnDefault substitutes a fallback when the value is blank rather than merely
+// null, reusing is_blank so the rule an author already knows from is_blank is
+// the rule that applies here.
+func fnDefault(args []any) (any, error) {
+	blank, err := fnIsBlank(args[:1])
+	if err != nil {
+		return nil, err
+	}
+	if b, _ := blank.(bool); b {
+		return args[1], nil
+	}
+	return args[0], nil
 }
 
 func fnToString(args []any) (any, error) {

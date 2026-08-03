@@ -1,8 +1,10 @@
 package stdlib
 
 import (
+	"context"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/xraph/dtl/executor"
 )
@@ -22,6 +24,16 @@ func registerObjects(m map[string]*executor.BuiltinFunc) {
 		"omit(obj, keys) -> object -- Removes the listed keys")
 	register(m, "has_key", 2, 2, fnHasKey,
 		"has_key(obj, key) -> bool -- Whether the key is present")
+	register(m, "deep_merge", 2, -1, fnDeepMerge,
+		"deep_merge(a, b, ...) -> object -- Recursive merge; later values win. Nested objects merge, arrays are replaced")
+	register(m, "map_values", 2, 2, fnMapValues,
+		"map_values(obj, fn) -> object -- Applies fn to every value, keeping the keys")
+	register(m, "map_keys", 2, 2, fnMapKeys,
+		"map_keys(obj, fn) -> object -- Applies fn to every key, keeping the values")
+	register(m, "from_entries", 1, 1, fnFromEntries,
+		"from_entries(arr) -> object -- Builds an object from [{key, value}] pairs. Inverse of entries")
+	register(m, "invert", 1, 1, fnInvert,
+		"invert(obj) -> object -- Swaps keys and values. Later keys win when values collide")
 }
 
 func fnKeys(args []any) (any, error) {
@@ -134,6 +146,129 @@ func fnOmit(args []any) (any, error) {
 		}
 	}
 	return result, nil
+}
+
+// fnDeepMerge merges recursively, unlike merge which overwrites at the top
+// level. Arrays are replaced rather than concatenated: concatenating turns a
+// merge into an append, which is almost never what a caller layering defaults
+// under overrides wants, and an explicit concat is available when it is.
+func fnDeepMerge(args []any) (any, error) {
+	result := map[string]any{}
+	for _, arg := range args {
+		obj, ok := arg.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("deep_merge: all arguments must be objects")
+		}
+		result = mergeInto(result, obj)
+	}
+	return result, nil
+}
+
+func mergeInto(dst, src map[string]any) map[string]any {
+	out := make(map[string]any, len(dst)+len(src))
+	for k, v := range dst {
+		out[k] = v
+	}
+	for k, v := range src {
+		existing, hasExisting := out[k]
+		if !hasExisting {
+			out[k] = v
+			continue
+		}
+		exObj, exOK := existing.(map[string]any)
+		newObj, newOK := v.(map[string]any)
+		if exOK && newOK {
+			out[k] = mergeInto(exObj, newObj)
+			continue
+		}
+		out[k] = v
+	}
+	return out
+}
+
+func fnMapValues(args []any) (any, error) {
+	obj, ok := args[0].(map[string]any)
+	if !ok {
+		return map[string]any{}, nil
+	}
+	// Sorted so the callback runs in a stable order. Map iteration order is
+	// random in Go, and a callback with an observable effect — DEBUG, say —
+	// would otherwise behave differently between identical runs.
+	keys := sortedKeys(obj)
+	result := make(map[string]any, len(obj))
+	for _, k := range keys {
+		val, err := executor.CallLambda(context.Background(), args[1], []any{obj[k]}, time.Now(), 0)
+		if err != nil {
+			return nil, fmt.Errorf("map_values: %w", err)
+		}
+		result[k] = val
+	}
+	return result, nil
+}
+
+func fnMapKeys(args []any) (any, error) {
+	obj, ok := args[0].(map[string]any)
+	if !ok {
+		return map[string]any{}, nil
+	}
+	keys := sortedKeys(obj)
+	result := make(map[string]any, len(obj))
+	for _, k := range keys {
+		val, err := executor.CallLambda(context.Background(), args[1], []any{k}, time.Now(), 0)
+		if err != nil {
+			return nil, fmt.Errorf("map_keys: %w", err)
+		}
+		result[executor.ToString(val)] = obj[k]
+	}
+	return result, nil
+}
+
+// fnFromEntries accepts what entries produces: [{key, value}] objects. Entries
+// missing a key are skipped rather than producing an "" key, since a pipeline
+// that filtered entries down should not gain a blank one.
+func fnFromEntries(args []any) (any, error) {
+	arr, ok := args[0].([]any)
+	if !ok {
+		return map[string]any{}, nil
+	}
+	result := make(map[string]any, len(arr))
+	for _, item := range arr {
+		entry, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		k, hasKey := entry["key"]
+		if !hasKey {
+			continue
+		}
+		result[executor.ToString(k)] = entry["value"]
+	}
+	return result, nil
+}
+
+func fnInvert(args []any) (any, error) {
+	obj, ok := args[0].(map[string]any)
+	if !ok {
+		return map[string]any{}, nil
+	}
+	// Sorted so that when two keys share a value, which one wins is stable
+	// rather than dependent on map iteration order.
+	result := make(map[string]any, len(obj))
+	for _, k := range sortedKeys(obj) {
+		result[executor.ToString(obj[k])] = k
+	}
+	return result, nil
+}
+
+// sortedKeys returns an object's keys in sorted order. Several functions here
+// depend on a deterministic traversal, so the sort lives in one place.
+func sortedKeys(obj map[string]any) []string {
+	keys := make([]string, 0, len(obj))
+	for k := range obj {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func fnHasKey(args []any) (any, error) {

@@ -1,6 +1,8 @@
 package stdlib
 
 import (
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -53,28 +55,47 @@ func TestBuiltinNameMatchesKey(t *testing.T) {
 }
 
 // TestAliasesShareTheirTargetsBehaviour pins the property the alias helper
-// exists to guarantee: a legacy system::* spelling is the same function as the
-// bare name, with the same arity, not a parallel registration that can be
-// updated on one side only.
+// exists to guarantee: an alternate spelling is the same function, with the
+// same arity, not a parallel registration that can be updated on one side only.
+//
+// Aliases are identified by comparing implementation pointers rather than by
+// matching names. Name matching would pair path::flatten with the unrelated
+// collections flatten, and assert something neither function promises.
 func TestAliasesShareTheirTargetsBehaviour(t *testing.T) {
 	builtins := make(map[string]*executor.BuiltinFunc)
 	RegisterAll(builtins)
 
-	for name, b := range builtins {
-		idx := strings.LastIndex(name, "::")
-		if idx < 0 {
+	type arity struct{ min, max int }
+	seen := map[uintptr]struct {
+		name string
+		ar   arity
+	}{}
+
+	names := make([]string, 0, len(builtins))
+	for name := range builtins {
+		names = append(names, name)
+	}
+	sort.Strings(names) // stable "first" so failures name the same pair each run
+
+	for _, name := range names {
+		b := builtins[name]
+		if b.Fn == nil {
 			continue
 		}
-		bare := name[idx+2:]
-		target, ok := builtins[bare]
+		ptr := reflect.ValueOf(b.Fn).Pointer()
+		this := arity{b.MinArgs, b.MaxArgs}
+
+		first, ok := seen[ptr]
 		if !ok {
-			// Namespaces with no bare counterpart (time::now, id::uuid, and
-			// the new topic namespaces) are not aliases. Nothing to compare.
+			seen[ptr] = struct {
+				name string
+				ar   arity
+			}{name, this}
 			continue
 		}
-		if b.MinArgs != target.MinArgs || b.MaxArgs != target.MaxArgs {
-			t.Errorf("%s has arity (%d,%d) but %s has (%d,%d)",
-				name, b.MinArgs, b.MaxArgs, bare, target.MinArgs, target.MaxArgs)
+		if first.ar != this {
+			t.Errorf("%s and %s share an implementation but declare different arities (%d,%d) vs (%d,%d)",
+				first.name, name, first.ar.min, first.ar.max, this.min, this.max)
 		}
 	}
 }
