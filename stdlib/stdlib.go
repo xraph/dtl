@@ -19,6 +19,7 @@ func RegisterAll(builtins map[string]*executor.BuiltinFunc) {
 	registerFormatting(builtins)
 	registerObjects(builtins)
 	registerPath(builtins)
+	registerRegex(builtins)
 	registerNamespaceHelpers(builtins)
 }
 

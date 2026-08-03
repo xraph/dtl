@@ -215,19 +215,13 @@ func fnExtractNumber(args []any) (any, error) {
 	return f, nil
 }
 
+// fnMatchRegex is the legacy spelling of regex::find_all, which it delegates to
+// rather than reimplementing. Keeping one implementation means the two names
+// cannot come to disagree, and match_regex picks up the compiled-pattern cache
+// it previously lacked — it used to call regexp.Compile on every invocation, so
+// mapping it over a large array recompiled the same pattern once per element.
 func fnMatchRegex(args []any) (any, error) {
-	s := executor.ToString(args[0])
-	pattern := executor.ToString(args[1])
-	re, err := regexp.Compile(pattern)
-	if err != nil {
-		return nil, fmt.Errorf("match_regex: invalid pattern: %w", err)
-	}
-	matches := re.FindAllString(s, -1)
-	result := make([]any, len(matches))
-	for i, m := range matches {
-		result[i] = m
-	}
-	return result, nil
+	return findAll("match_regex", args)
 }
 
 func fnEndsWith(args []any) (any, error) {
