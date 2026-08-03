@@ -54,7 +54,7 @@ func registerCollectionsExtra(m map[string]*executor.BuiltinFunc) {
 // callLambda invokes a DTL lambda, labelling failures with the calling builtin
 // so an error inside a callback points at the function the author called.
 func callLambda(fnName string, lambda any, arg any) (any, error) {
-	v, err := executor.CallLambda(context.Background(), lambda, []any{arg}, time.Now(), 0)
+	v, err := executor.CallLambda(context.Background(), lambda, []any{arg}, time.Time{}, 0)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", fnName, err)
 	}

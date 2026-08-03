@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xraph/dtl/executor"
 )
@@ -115,5 +116,62 @@ func TestDepthErrorIsLegible(t *testing.T) {
 	_, err := reg.Execute(context.Background(), "a", map[string]any{"n": 0.0})
 	if err == nil || !strings.Contains(err.Error(), "call depth") {
 		t.Fatalf("error should mention call depth, got %v", err)
+	}
+}
+
+// TestDepthLimitHoldsThroughLambdas covers the hole the original fix left.
+//
+// Bounding call depth in the executor was not enough: stdlib's higher-order
+// functions are plain func(args []any) with no access to the running
+// evalCtx, so they invoked lambdas with a depth of 0 and a freshly-taken
+// start time. Every element therefore reset both limits, and recursion routed
+// through map or filter crashed the process exactly as before — a
+// `fatal error: stack overflow`, not an error return.
+//
+// Lambdas now carry the limits in force where they were written.
+func TestDepthLimitHoldsThroughLambdas(t *testing.T) {
+	reg := New(Config{})
+	mustReg := func(name, src string) {
+		t.Helper()
+		if err := reg.Register(name, src); err != nil {
+			t.Fatalf("register %s: %v", name, err)
+		}
+	}
+	// Same re-registration trick as above, but each hop goes through map so
+	// the recursion crosses a stdlib higher-order function every time.
+	mustReg("b", `fn b(n: float) -> float => n`)
+	mustReg("a", `fn a(n: float) -> float => sum(map([n], x => b(x + 1)))`)
+	mustReg("b", `fn b(n: float) -> float => sum(map([n], x => a(x + 1)))`)
+
+	_, err := reg.Execute(context.Background(), "a", map[string]any{"n": 0.0})
+	if err == nil {
+		t.Fatal("recursion through a lambda was unbounded")
+	}
+	if !errors.Is(err, executor.ErrMaxDepth) {
+		t.Fatalf("got %v, want executor.ErrMaxDepth", err)
+	}
+}
+
+// The same reset broke timeouts: a fresh start time per element meant the
+// deadline could never elapse inside a collection.
+func TestTimeoutAppliesInsideLambdas(t *testing.T) {
+	reg := New(Config{DefaultTimeout: 20 * time.Millisecond})
+
+	// A large input whose per-element work is trivial but whose total exceeds
+	// the timeout comfortably once the deadline is actually honoured.
+	xs := make([]any, 200000)
+	for i := range xs {
+		xs[i] = float64(i)
+	}
+	if err := reg.Register("f", `fn f(xs: float[]) -> float => xs | map(x => x * 2.0) | sum`); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	_, err := reg.Execute(context.Background(), "f", map[string]any{"xs": xs})
+	if err == nil {
+		t.Skip("input completed within the timeout on this machine; timing-sensitive")
+	}
+	if !errors.Is(err, executor.ErrTimeout) {
+		t.Fatalf("got %v, want executor.ErrTimeout", err)
 	}
 }

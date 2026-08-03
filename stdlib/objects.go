@@ -197,7 +197,7 @@ func fnMapValues(args []any) (any, error) {
 	keys := sortedKeys(obj)
 	result := make(map[string]any, len(obj))
 	for _, k := range keys {
-		val, err := executor.CallLambda(context.Background(), args[1], []any{obj[k]}, time.Now(), 0)
+		val, err := executor.CallLambda(context.Background(), args[1], []any{obj[k]}, time.Time{}, 0)
 		if err != nil {
 			return nil, fmt.Errorf("map_values: %w", err)
 		}
@@ -214,7 +214,7 @@ func fnMapKeys(args []any) (any, error) {
 	keys := sortedKeys(obj)
 	result := make(map[string]any, len(obj))
 	for _, k := range keys {
-		val, err := executor.CallLambda(context.Background(), args[1], []any{k}, time.Now(), 0)
+		val, err := executor.CallLambda(context.Background(), args[1], []any{k}, time.Time{}, 0)
 		if err != nil {
 			return nil, fmt.Errorf("map_keys: %w", err)
 		}

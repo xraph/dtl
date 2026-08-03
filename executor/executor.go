@@ -247,10 +247,57 @@ type env struct {
 	// Spill storage, allocated only by a scope that exceeds envInline.
 	moreNames []string
 	moreVals  []any
+
+	// reusable marks a scope that will be rebound and run again — a lambda's
+	// per-iteration scope. Anything that outlives one iteration must snapshot
+	// it rather than keep the pointer; see snapshot and evalLambda.
+	reusable bool
 }
 
 func newEnv(parent *env) *env {
 	return &env{parent: parent}
+}
+
+// reset rebinds an existing scope to a new parent and drops its bindings, so
+// one allocation can serve every iteration of a loop.
+func (e *env) reset(parent *env) {
+	e.parent = parent
+	// Clear rather than truncate: the arrays hold `any` and `string`, and
+	// leaving stale entries would keep whatever they reference alive.
+	for i := 0; i < e.n; i++ {
+		e.names[i] = ""
+		e.vals[i] = nil
+	}
+	e.n = 0
+	for i := range e.moreNames {
+		e.moreNames[i] = ""
+		e.moreVals[i] = nil
+	}
+	e.moreNames = e.moreNames[:0]
+	e.moreVals = e.moreVals[:0]
+}
+
+// snapshot returns a scope with the same bindings that will not be rebound.
+//
+// It copies the chain for as long as the scopes are reusable, because a
+// closure capturing a scratch scope would otherwise observe the next
+// iteration's values. Non-reusable ancestors are shared, not copied: they are
+// stable for the closure's lifetime already.
+func (e *env) snapshot() *env {
+	if e == nil || !e.reusable {
+		return e
+	}
+	cp := &env{
+		parent: e.parent.snapshot(),
+		n:      e.n,
+		names:  e.names,
+		vals:   e.vals,
+	}
+	if len(e.moreNames) > 0 {
+		cp.moreNames = append([]string(nil), e.moreNames...)
+		cp.moreVals = append([]any(nil), e.moreVals...)
+	}
+	return cp
 }
 
 // lookupLocal finds a binding in this scope only, without walking to parents.
@@ -828,12 +875,18 @@ func (ex *Executor) callUserFunction(ec *evalCtx, fn *CompiledFunction, args []a
 
 func (ex *Executor) evalLambda(ec *evalCtx, e *ast.LambdaExpr) (any, error) {
 	// Capture the current environment for closure
-	capturedEnv := ec.env
+	// snapshot, not the scope itself: if this lambda was created inside another
+	// lambda's body, ec.env is that lambda's per-iteration scratch and will be
+	// rebound on its next iteration. Taking a copy here is what makes scratch
+	// reuse safe, and it costs nothing outside that nested case.
+	capturedEnv := ec.env.snapshot()
 	return &lambdaClosure{
 		params: e.Params, body: e.Body, env: capturedEnv, executor: ex,
 		// Captured here rather than passed to Call, because the public
 		// CallLambda entry point stdlib uses carries only a context.
 		debug: ec.debug,
+		depth: ec.depth,
+		start: ec.start,
 	}, nil
 }
 
@@ -844,17 +897,64 @@ type lambdaClosure struct {
 	env      *env
 	executor *Executor
 	debug    *[]DebugEntry
+
+	// depth and start are the execution limits in force where this lambda was
+	// written, carried on the closure because the callers that invoke it
+	// cannot supply them: stdlib's higher-order functions are plain
+	// func(args []any) with no access to the running evalCtx, so they passed
+	// time.Now() and 0 — restarting the deadline and resetting the depth
+	// counter on every element. Recursion routed through map or filter
+	// therefore ran unbounded and crashed the process, and a timeout could
+	// never fire inside a collection.
+	depth int
+	start time.Time
+
+	// scratch is this closure's argument scope, reused across calls. filter,
+	// map and reduce invoke the same closure once per element, and allocating
+	// a scope each time made newEnv 87% of the collection workload's
+	// allocations. inCall guards against reentrancy — a lambda whose body
+	// reaches this same closure again must not rebind the scope it is using.
+	scratch *env
+	inCall  bool
 }
 
 // Call invokes a lambda closure with the given arguments.
-func (lc *lambdaClosure) Call(ctx context.Context, args []any, start time.Time, depth int) (any, error) {
-	childEnv := newEnv(lc.env)
+//
+// start and depth are ignored; the closure carries the limits in force where
+// it was written. They remain in the signature because CallLambda is public
+// and stdlib passes them, but honouring a caller-supplied depth of 0 is what
+// let recursion through map and filter run unbounded.
+func (lc *lambdaClosure) Call(ctx context.Context, args []any, _ time.Time, _ int) (any, error) {
+	// Reuse this closure's scope unless a call is already using it. Evaluation
+	// is single-threaded, so the only way to arrive here mid-call is a body
+	// that reaches its own closure again; that case falls back to a fresh
+	// scope rather than corrupting the outer one.
+	var childEnv *env
+	reused := !lc.inCall
+	if reused {
+		if lc.scratch == nil {
+			lc.scratch = newEnv(lc.env)
+			lc.scratch.reusable = true
+		} else {
+			lc.scratch.reset(lc.env)
+		}
+		childEnv = lc.scratch
+		lc.inCall = true
+		defer func() { lc.inCall = false }()
+	} else {
+		childEnv = newEnv(lc.env)
+		childEnv.reusable = true // a nested closure must still snapshot it
+	}
+
 	for i, name := range lc.params {
 		if i < len(args) {
 			childEnv.set(name, args[i])
 		}
 	}
-	ec := &evalCtx{ctx: ctx, env: childEnv, depth: depth, start: start, debug: lc.debug}
+	ec := &evalCtx{ctx: ctx, env: childEnv, depth: lc.depth + 1, start: lc.start, debug: lc.debug}
+	if err := ec.checkLimits(lc.executor); err != nil {
+		return nil, err
+	}
 	return lc.executor.evalExpr(ec, lc.body)
 }
 

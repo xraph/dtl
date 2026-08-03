@@ -122,6 +122,12 @@ reg := registry.New(registry.Config{
 })
 ```
 
+Both limits apply inside lambdas passed to `map`, `filter`, `reduce` and the
+rest of the higher-order library: a lambda carries the depth and deadline in
+force where it was written. Before v1.5.4 it did not, and recursion routed
+through a collection function could exhaust the stack despite `MaxCallDepth`
+being set.
+
 Neither limit constrains a builtin you register yourself; those run your Go
 code, and bounding it is yours to do.
 

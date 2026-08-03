@@ -107,7 +107,7 @@ func fnMap(args []any) (any, error) {
 	}
 	result := make([]any, 0, len(arr))
 	for _, item := range arr {
-		val, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Now(), 0)
+		val, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Time{}, 0)
 		if err != nil {
 			return nil, fmt.Errorf("map: %w", err)
 		}
@@ -121,9 +121,12 @@ func fnFilter(args []any) (any, error) {
 	if !ok {
 		return nil, fmt.Errorf("filter: first argument must be an array")
 	}
-	result := make([]any, 0)
+	// Sized for the whole input: filter keeps a subset, so this over-allocates
+	// at worst, against one growth per doubling otherwise. On a 100-element
+	// array the repeated growth was over half the remaining allocations.
+	result := make([]any, 0, len(arr))
 	for _, item := range arr {
-		val, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Now(), 0)
+		val, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Time{}, 0)
 		if err != nil {
 			return nil, fmt.Errorf("filter: %w", err)
 		}
@@ -141,7 +144,7 @@ func fnReduce(args []any) (any, error) {
 	}
 	acc := args[1]
 	for _, item := range arr {
-		val, err := executor.CallLambda(context.Background(), args[2], []any{acc, item}, time.Now(), 0)
+		val, err := executor.CallLambda(context.Background(), args[2], []any{acc, item}, time.Time{}, 0)
 		if err != nil {
 			return nil, fmt.Errorf("reduce: %w", err)
 		}
@@ -319,7 +322,7 @@ func fnGroupBy(args []any) (any, error) {
 	}
 	groups := make(map[string][]any)
 	for _, item := range arr {
-		key, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Now(), 0)
+		key, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Time{}, 0)
 		if err != nil {
 			return nil, fmt.Errorf("group_by: %w", err)
 		}
@@ -595,7 +598,7 @@ func fnCountWhere(args []any) (any, error) {
 	}
 	count := int64(0)
 	for _, item := range arr {
-		val, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Now(), 0)
+		val, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Time{}, 0)
 		if err != nil {
 			return nil, fmt.Errorf("count_where: %w", err)
 		}
@@ -613,7 +616,7 @@ func fnSumWhere(args []any) (any, error) {
 	}
 	sum := 0.0
 	for _, item := range arr {
-		val, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Now(), 0)
+		val, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Time{}, 0)
 		if err != nil {
 			return nil, fmt.Errorf("sum_where: %w", err)
 		}
@@ -632,7 +635,7 @@ func fnFind(args []any) (any, error) {
 		return nil, nil
 	}
 	for _, item := range arr {
-		val, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Now(), 0)
+		val, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Time{}, 0)
 		if err != nil {
 			return nil, fmt.Errorf("find: %w", err)
 		}
@@ -649,7 +652,7 @@ func fnFindIndex(args []any) (any, error) {
 		return int64(-1), nil
 	}
 	for i, item := range arr {
-		val, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Now(), 0)
+		val, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Time{}, 0)
 		if err != nil {
 			return nil, fmt.Errorf("find_index: %w", err)
 		}
@@ -680,7 +683,7 @@ func fnEvery(args []any) (any, error) {
 		return false, nil
 	}
 	for _, item := range arr {
-		val, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Now(), 0)
+		val, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Time{}, 0)
 		if err != nil {
 			return nil, fmt.Errorf("every: %w", err)
 		}
@@ -697,7 +700,7 @@ func fnSome(args []any) (any, error) {
 		return false, nil
 	}
 	for _, item := range arr {
-		val, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Now(), 0)
+		val, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Time{}, 0)
 		if err != nil {
 			return nil, fmt.Errorf("some: %w", err)
 		}
@@ -770,7 +773,7 @@ func fnTakeWhile(args []any) (any, error) {
 	}
 	result := make([]any, 0)
 	for _, item := range arr {
-		val, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Now(), 0)
+		val, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Time{}, 0)
 		if err != nil {
 			return nil, fmt.Errorf("take_while: %w", err)
 		}
@@ -791,7 +794,7 @@ func fnDropWhile(args []any) (any, error) {
 	result := make([]any, 0)
 	for _, item := range arr {
 		if dropping {
-			val, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Now(), 0)
+			val, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Time{}, 0)
 			if err != nil {
 				return nil, fmt.Errorf("drop_while: %w", err)
 			}
@@ -813,7 +816,7 @@ func fnDistinctBy(args []any) (any, error) {
 	seen := make(map[string]bool)
 	result := make([]any, 0, len(arr))
 	for _, item := range arr {
-		key, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Now(), 0)
+		key, err := executor.CallLambda(context.Background(), args[1], []any{item}, time.Time{}, 0)
 		if err != nil {
 			return nil, fmt.Errorf("distinct_by: %w", err)
 		}
