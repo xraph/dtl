@@ -364,8 +364,10 @@ whitespace-only string, empty array, or empty object.
 `reverse_text` `capitalize` `title_case` `snake_case` `camel_case`
 `pascal_case` `kebab_case` `slugify` `word_count` `extract_number` `mask`
 
-Text functions measure and index in **characters, not bytes**, so
-`substr(s, index_of(s, x))` composes correctly on non-ASCII input.
+Strings are measured and indexed in **characters, not bytes**, throughout —
+including `len`. So `substr(s, index_of(s, x))` composes correctly on non-ASCII
+input, and `len(s)` is a valid bound for `substr`, `left`, `right` and
+`pad_left`.
 
 ### Collections
 

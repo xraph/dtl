@@ -256,3 +256,67 @@ func TestMiscTextHelpers(t *testing.T) {
 		})
 	}
 }
+
+// len measures characters, like every other string function in the library.
+// It used to return a byte count, which made len("café") 5 while substr and
+// pad_left treated the same string as 4 characters long.
+func TestLenCountsCharacters(t *testing.T) {
+	tests := []struct {
+		name  string
+		input any
+		want  int64
+	}{
+		{"ascii", "hello", 5},
+		{"accented", "café", 4},
+		{"emoji", "a🎉b", 3},
+		{"cjk", "日本語", 3},
+		{"empty", "", 0},
+		{"array is unaffected", []any{1, 2, 3}, 3},
+		{"object is unaffected", map[string]any{"a": 1}, 1},
+		{"null", nil, 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := fnLen([]any{tt.input})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tt.want {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// The point of the change: a length can now bound a substring correctly on any
+// input, which it could not when the two counted different units.
+func TestLenAgreesWithTheStringFunctionsItBounds(t *testing.T) {
+	for _, s := range []string{"hello", "café", "日本語", "a🎉b", ""} {
+		t.Run(s, func(t *testing.T) {
+			n, err := fnLen([]any{s})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Taking len characters from the start returns the whole string.
+			whole, _ := fnSubstr([]any{s, 0, n})
+			if whole != s {
+				t.Errorf("substr(s, 0, len(s)) = %q, want %q", whole, s)
+			}
+
+			// Padding to len leaves it untouched, adding nothing.
+			padded, _ := fnPadLeft([]any{s, n, "-"})
+			if padded != s {
+				t.Errorf("pad_left(s, len(s)) = %q, want %q", padded, s)
+			}
+
+			// left and right at len both return everything.
+			l, _ := fnLeft([]any{s, n})
+			r, _ := fnRight([]any{s, n})
+			if l != s || r != s {
+				t.Errorf("left = %q, right = %q, want both %q", l, r, s)
+			}
+		})
+	}
+}

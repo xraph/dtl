@@ -11,7 +11,7 @@ import (
 
 func registerCore(m map[string]*executor.BuiltinFunc) {
 	register(m, "len", 1, 1, fnLen,
-		"len(x) -> int -- Length of a string, array, or object. Strings are measured in bytes")
+		"len(x) -> int -- Length of a string, array, or object. Strings are measured in characters")
 	register(m, "type_of", 1, 1, fnTypeOf,
 		"type_of(x) -> string -- Type name: 'null', 'bool', 'int', 'float', 'string', 'array', 'object', or 'datetime'")
 	register(m, "is_null", 1, 1, fnIsNull,
@@ -61,10 +61,17 @@ func registerCore(m map[string]*executor.BuiltinFunc) {
 	}, "PRINT(x, ...) -> any -- Records its arguments as output and returns the last one")
 }
 
+// fnLen measures strings in characters, matching substr, pad_left, truncate,
+// index_of and every other string function in the library.
+//
+// It previously returned a byte count, which made it the single odd one out:
+// len("café") was 5 while substr("café", 0, 4) returned the whole string. The
+// two disagreed on any non-ASCII input, so a length used to bound a substring
+// was wrong exactly when it mattered.
 func fnLen(args []any) (any, error) {
 	switch v := args[0].(type) {
 	case string:
-		return int64(len(v)), nil
+		return int64(len([]rune(v))), nil
 	case []any:
 		return int64(len(v)), nil
 	case map[string]any:
