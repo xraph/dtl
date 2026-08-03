@@ -1,3 +1,17 @@
+## [2.0.0](https://github.com/xraph/dtl/compare/v1.4.0...v2.0.0) (2026-08-03)
+
+### ⚠ BREAKING CHANGES
+
+* **stdlib:** len() on a string now returns the number of characters
+rather than the number of bytes. Results differ for any string
+containing non-ASCII characters: len("café") is now 4, previously 5.
+Callers that genuinely wanted a byte count — sizing a buffer or a
+network payload — should compute it host-side rather than through len.
+
+### Bug Fixes
+
+* **stdlib:** len counts characters, not bytes ([bacf375](https://github.com/xraph/dtl/commit/bacf375c6cfd2e421e8d5995fd9d39014377c97e))
+
 ## [1.4.0](https://github.com/xraph/dtl/compare/v1.3.0...v1.4.0) (2026-08-03)
 
 ### Features
