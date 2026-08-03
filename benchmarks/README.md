@@ -73,18 +73,21 @@ cell as marshalling cost, not interpreter speed.
 
 ## Results
 
-Apple M3 Max, Go 1.26.3, darwin/arm64. `ns/op` — lower is better.
+Apple M3 Max, Go 1.26.3, darwin/arm64. `ns/op` — lower is better, best of
+three runs. Treat differences under ~15% as noise: run-to-run variance on a
+laptop moved some engines by 2× between runs while the code under test was
+identical.
 Best in each row is **bold**.
 
 ### Evaluation (steady state)
 
 | workload | DTL | expr | cel-go | goja | gopher-lua | starlark |
 |---|--:|--:|--:|--:|--:|--:|
-| arith | 197 | 107 | 126 | 155 | **92** | 313 |
-| cond | 165 | 63 | 132 | 161 | **74** | 627 |
-| string | 328 | **157** | 235 | 403 | 285 | 487 |
-| field | 146 | 148 | **85** | 424 | 2733 ◆ | 767 |
-| collection | 11113 | **5038** | n/a | 11536 | 5153 | 6342 |
+| arith | 210 | 111 | 148 | 184 | **94** | 333 |
+| cond | 161 | **65** | 134 | 172 | 88 | 648 |
+| string | 319 | **157** | 238 | 417 | 290 | 502 |
+| field | 149 | 154 | **88** | 446 | 2694 ◆ | 773 |
+| collection | 11254 | **5169** | n/a | 12018 | 5213 | 6406 |
 
 ◆ dominated by per-call marshalling, see above.
 
@@ -98,21 +101,32 @@ Allocations per evaluation:
 
 ### Compilation (cold start)
 
-Each iteration builds a fresh isolated environment *and* compiles — `registry.New`,
-`cel.NewEnv`, `lua.NewState` respectively. That is the like-for-like shape, but
-it hides how the cost splits. For DTL it splits sharply:
-
-| step | ns/op | B/op | allocs |
-|---|--:|--:|--:|
-| `registry.New` (registers whole stdlib) | 29330 | 48232 | 316 |
-| `Register` on a warm registry | **2315** | 4664 | 31 |
-| combined (what the table below shows) | 29412 | 53144 | 350 |
+Each iteration builds a fresh isolated environment *and* compiles —
+`registry.New`, `cel.NewEnv`, `lua.NewState` respectively. Best of three:
 
 | workload | DTL | expr | cel-go | goja | gopher-lua | starlark |
 |---|--:|--:|--:|--:|--:|--:|
-| arith | 29412 | 7881 | 79328 | 4422 | 85518 | **4355** |
-| cond | 31033 | 10195 | 106171 | 6169 | 129344 | **6214** |
-| collection | 33029 | 9367 | n/a | 9489 | 93778 | **6868** |
+| arith | **2075** | 6834 | 81184 | 4523 | 81971 | 4396 |
+| cond | **2881** | 9811 | 101456 | 5857 | 89018 | 5979 |
+| string | **2508** | 8165 | 84672 | 5394 | 89890 | 5086 |
+| field | **2436** | 8445 | 79943 | 4391 | 85966 | 4736 |
+| collection | **3199** | 9852 | n/a | 9802 | 99124 | 7303 |
+
+DTL is the fastest here by 2–3× over the next engine, and 30× over cel-go and
+gopher-lua, which build a substantial environment per call.
+
+That was not true before the standard library became process-wide. Each
+`registry.New` used to construct ~400 `BuiltinFunc` values:
+
+| step | before | after |
+|---|--:|--:|
+| `registry.New` | 29330 ns / 48232 B / 316 allocs | **72 ns / 176 B / 3 allocs** |
+| `Register` on a warm registry | 2315 ns / 4664 B / 31 | 2132 ns / 4664 B / 31 |
+
+Nothing about a `BuiltinFunc` is per-registry — they close over no registry
+state — so every registry was rebuilding an identical table. It is now built
+once and shared, with host-registered builtins kept in a per-registry overlay
+so that sharing cannot leak between them.
 
 ## Reading the results
 
@@ -145,10 +159,13 @@ The four that went away were all scaffolding rather than evaluation:
 `field` is the clearest illustration: 274 ns → 146 ns, now level with expr,
 because that workload is almost entirely call overhead plus three map reads.
 
-**Where DTL already wins.** Compiling a function into a warm registry costs
-**2315 ns** — faster than expr (7881), cel-go (79328) and gopher-lua (85518).
-DTL's front end is genuinely quick; the cost is concentrated in
-`registry.New`'s stdlib registration and in per-call evaluation overhead.
+**Where DTL wins.** Cold start, by a wide margin — see the compile table
+above. Its front end was always quick; what had hidden that was `registry.New`
+rebuilding the whole standard library, which is now shared process-wide.
+
+For a host that builds a registry per tenant or per request, that single
+change is worth more than everything else here: 29 µs and 316 allocations per
+registry became 72 ns and 3.
 
 **What this suite does not measure.** Concurrency, memory under sustained load,
 deep recursion, or large-input scaling. It also does not measure the things
