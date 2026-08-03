@@ -1,3 +1,13 @@
+## [1.5.3](https://github.com/xraph/dtl/compare/v1.5.2...v1.5.3) (2026-08-03)
+
+### Performance Improvements
+
+* **registry:** share the standard library across registries ([e82e18f](https://github.com/xraph/dtl/commit/e82e18fd785ad20949e2b48e16620ebc915f68fb))
+
+### Documentation
+
+* **benchmarks:** refresh results after the shared standard library ([f83b46c](https://github.com/xraph/dtl/commit/f83b46c2dbed61f9bb6540e5eafda8c87dd0157f))
+
 ## [1.5.2](https://github.com/xraph/dtl/compare/v1.5.1...v1.5.2) (2026-08-03)
 
 ### Performance Improvements
