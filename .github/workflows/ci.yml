@@ -17,3 +17,15 @@ jobs:
       go-versions: '["1.26"]'
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  # benchmarks/ is a separate module, so `go test ./...` at the root never sees
+  # it and it would rot silently as DTL's API moves. only-test runs its
+  # TestParity (which fails if the engines stop agreeing) and compiles the
+  # benchmark functions without running them — enough to catch drift cheaply.
+  # Lint and security are skipped: this module ships no product code.
+  benchmarks:
+    uses: xraph/workflows/.github/workflows/go-ci.yml@v1
+    with:
+      go-versions: '["1.26"]'
+      working-directory: benchmarks
+      only-test: true

@@ -117,7 +117,7 @@ var Workloads = []*Workload{
 		Input: map[string]any{"xs": collInput},
 		Want:  sumOver(collInput, 10.0),
 
-		DTL:  `fn f(xs: float[]) -> float => xs | filter((x) => x > 10.0) | sum`,
+		DTL:  `fn f(xs: float[]) -> float => xs | filter(x => x > 10.0) | sum`,
 		Expr: `sum(filter(xs, # > 10.0))`,
 		// Base CEL has filter but no fold/sum, and cel-go ships no standard sum
 		// extension. Emulating one with a nested comprehension would measure a

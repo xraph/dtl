@@ -80,11 +80,11 @@ Best in each row is **bold**.
 
 | workload | DTL | expr | cel-go | goja | gopher-lua | starlark |
 |---|--:|--:|--:|--:|--:|--:|
-| arith | 373 | 173 | 215 | 161 | **97** | 328 |
-| cond | 299 | 66 | 134 | 166 | **78** | 633 |
-| string | 481 | **163** | 258 | 417 | 315 | 519 |
-| field | 314 | 150 | **85** | 435 | 2710 ◆ | 763 |
-| collection | 20037 | **5227** | n/a | 12324 | 5444 | 6379 |
+| arith | 304 | 109 | 132 | 170 | **98** | 382 |
+| cond | 304 | 63 | 134 | 167 | **77** | 630 |
+| string | 463 | **155** | 229 | 400 | 290 | 509 |
+| field | 274 | 147 | **82** | 435 | 2704 ◆ | 773 |
+| collection | 20347 | **5211** | n/a | 12171 | 5216 | 6552 |
 
 ◆ dominated by per-call marshalling, see above.
 
@@ -104,8 +104,8 @@ it hides how the cost splits. For DTL it splits sharply:
 
 | step | ns/op | B/op | allocs |
 |---|--:|--:|--:|
-| `registry.New` (registers whole stdlib) | 22185 | 48232 | 316 |
-| `Register` on a warm registry | **1973** | 4664 | 31 |
+| `registry.New` (registers whole stdlib) | 29330 | 48232 | 316 |
+| `Register` on a warm registry | **2315** | 4664 | 31 |
 | combined (what the table below shows) | 29412 | 53144 | 350 |
 
 | workload | DTL | expr | cel-go | goja | gopher-lua | starlark |
@@ -125,12 +125,12 @@ That is the expected shape, not a defect — but it is the honest headline.
 the expression:
 
 ```
-BenchmarkDTLExecuteNoop    233 ns/op    472 B/op    6 allocs/op
+BenchmarkDTLExecuteNoop    269 ns/op    472 B/op    6 allocs/op
 ```
 
 That is `fn f(a: float) -> float => a` — a bare parameter reference. The
-`arith` workload costs 373 ns, so evaluating `a + b * 2 - 1` adds only ~140 ns
-on top of 233 ns of fixed scaffolding. **Roughly 60–75% of a small DTL call is
+`arith` workload costs 304 ns, so evaluating `a + b * 2 - 1` adds only ~35 ns
+on top of 269 ns of fixed scaffolding. **Roughly 60–90% of a small DTL call is
 overhead, not evaluation**, and it is paid identically by every call.
 
 The six allocations on that no-op account for essentially all of it — see
@@ -139,7 +139,7 @@ thing to fix: it moves every workload at once, and needs no change to the
 evaluator's design.
 
 **Where DTL already wins.** Compiling a function into a warm registry costs
-**1973 ns** — faster than expr (7881), cel-go (79328) and gopher-lua (85518).
+**2315 ns** — faster than expr (7881), cel-go (79328) and gopher-lua (85518).
 DTL's front end is genuinely quick; the cost is concentrated in
 `registry.New`'s stdlib registration and in per-call evaluation overhead.
 
