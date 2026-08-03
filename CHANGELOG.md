@@ -1,3 +1,9 @@
+## [1.5.4](https://github.com/xraph/dtl/compare/v1.5.3...v1.5.4) (2026-08-03)
+
+### Documentation
+
+* record why the v2.0.0 plan was wrong ([8f33fc8](https://github.com/xraph/dtl/commit/8f33fc8f03f85b045985069ce13ade6065761551))
+
 ## [1.5.3](https://github.com/xraph/dtl/compare/v1.5.2...v1.5.3) (2026-08-03)
 
 ### Performance Improvements
