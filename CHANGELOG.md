@@ -8,6 +8,60 @@ containing non-ASCII characters: len("café") is now 4, previously 5.
 Callers that genuinely wanted a byte count — sizing a buffer or a
 network payload — should compute it host-side rather than through len.
 
+### Migration: `len` on strings
+
+**Who is affected.** Only code that calls `len()` on a string that can contain
+non-ASCII characters. `len` on arrays and objects is unchanged, and any string
+that is pure ASCII returns exactly what it did before — one byte per character.
+
+```
+len("hello")   -- 5 before, 5 now      (unchanged)
+len("café")    -- 5 before, 4 now      (é is two bytes, one character)
+len("日本語")   -- 9 before, 3 now
+len([1, 2, 3]) -- 3 before, 3 now      (unchanged)
+```
+
+**Why it changed.** `len` was the only string function in the library counting
+bytes. `substr`, `left`, `right`, `pad_left`, `pad_right`, `truncate` and
+`reverse_text` have always counted characters, so `len` disagreed with every
+function it would naturally be paired with:
+
+```
+substr("café", 0, len("café"))   -- asked for 5 characters of a 4-character string
+pad_left("café", len("café"))    -- padded to 5, producing a leading space
+```
+
+Those expressions were silently wrong on non-ASCII input and correct on ASCII,
+which is why the disagreement survived so long.
+
+**What to do.**
+
+*If you slice, pad, or bound strings with `len`* — no action. Those call sites
+were latently wrong on non-ASCII input and are now correct. This release fixes
+them rather than breaking them.
+
+*If you genuinely needed a byte count* — sizing a buffer, enforcing a network
+payload limit, or checking a database column width measured in bytes — `len` no
+longer answers that question. Compute it host-side and register it under your
+own namespace:
+
+```go
+reg.RegisterBuiltin("bytes::len", &executor.BuiltinFunc{
+	Name: "bytes::len", MinArgs: 1, MaxArgs: 1,
+	Doc: "bytes::len(s) -> int -- Length of s in bytes",
+	Fn: func(args []any) (any, error) {
+		return int64(len(executor.ToString(args[0]))), nil
+	},
+})
+```
+
+**Finding affected call sites.** Search your DTL sources for `len(` applied to a
+string. The ones that matter are those whose result is compared against a limit
+expressed in bytes, or passed to something outside DTL that counts bytes —
+a column width, a protocol field, an allocation size. Uses that stay inside DTL
+(slicing, padding, validation against a human-facing character count) need no
+change.
+
 ### Bug Fixes
 
 * **stdlib:** len counts characters, not bytes ([bacf375](https://github.com/xraph/dtl/commit/bacf375c6cfd2e421e8d5995fd9d39014377c97e))
