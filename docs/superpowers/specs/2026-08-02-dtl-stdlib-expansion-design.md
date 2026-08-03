@@ -274,6 +274,25 @@ additive `feat` commits (1.3.0 onward). New text functions are rune-based from
 birth, so they compose correctly among themselves regardless of when `len` is
 fixed.
 
+> **As built — this decision was wrong, and the repository now forbids it.**
+>
+> A `v2.0.0` tag on this module is not installable. Go requires major version 2
+> and above to carry a matching path suffix, so `go get` against a `v2.x.y` tag
+> here fails with *"module path must match major version
+> (`github.com/xraph/dtl/v2`)"*. Cutting a major is therefore not a release
+> decision that can be made on its own — it requires renaming the module and
+> every import in the same change.
+>
+> The plan above reasoned only from `releaseRules`, which did say
+> `breaking: true → major`. That was the right reading of the config and the
+> wrong reading of the situation: the config could authorise a tag the module
+> path could not support.
+>
+> `releaseRules` now maps `breaking: true → minor`, and README.md documents why.
+> Breaking changes stay on the `v1` line, keep their `⚠ BREAKING CHANGES`
+> changelog entry and migration note, and only the version arithmetic differs.
+> The `len` fix shipped in **1.5.0** on exactly those terms.
+
 Consequence, accepted knowingly: between Phase 1 and the `len` fix, `index_of`
 and `len` disagree on non-ASCII strings. This is the pre-existing state of the
 library — `substr` already disagrees with `len` today — so the window introduces
@@ -284,7 +303,8 @@ Commit order:
 1. `Doc` field, 160-site backfill, LSP registry wiring, guard test.
 2. Phase 1 clusters, one commit per cluster.
 3. Phase 2 clusters, one commit per cluster.
-4. `len` rune fix, with a `BREAKING CHANGE:` footer → 2.0.0.
+4. `len` rune fix, with a `BREAKING CHANGE:` footer. Under the corrected rule
+   this resolves to a minor bump; it shipped in 1.5.0.
 
 ## Testing
 
