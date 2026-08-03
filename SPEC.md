@@ -192,7 +192,7 @@ values | filter(x => x > threshold)   -- keep matching elements
 values | filter(> 0)                  -- shorthand: implicit argument
 values | reduce(0, (acc, x) => acc + x)  -- fold
 values | sort()                        -- ascending
-values | sort(desc)                    -- descending
+values | sort("desc")                  -- descending
 values | tail(10)                      -- last N elements
 values | head(5)                       -- first N elements
 values | unique()                      -- deduplicate
