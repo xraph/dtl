@@ -7,21 +7,30 @@ import (
 )
 
 func registerMath(m map[string]*executor.BuiltinFunc) {
-	register(m, "clamp", 3, 3, fnClamp)
-	register(m, "lerp", 3, 3, fnLerp)
-	register(m, "normalize", 3, 3, fnNormalize)
-	register(m, "moving_avg", 2, 2, fnMovingAvg)
-	register(m, "ewma", 1, 2, fnEwma)
-	register(m, "sign", 1, 1, fnSign)
-	register(m, "random", 0, 0, fnRandom)
-	register(m, "random_int", 2, 2, fnRandomInt)
+	register(m, "clamp", 3, 3, fnClamp,
+		"clamp(value, min, max) -> float -- Restricts value to the range [min, max]")
+	register(m, "lerp", 3, 3, fnLerp,
+		"lerp(a, b, t) -> float -- Linear interpolation between a and b at position t")
+	register(m, "normalize", 3, 3, fnNormalize,
+		"normalize(value, min, max) -> float -- Scales value into 0..1 across the range; 0 when min equals max")
+	register(m, "moving_avg", 2, 2, fnMovingAvg,
+		"moving_avg(values, window) -> float -- Mean of the last `window` values; uses every value when the window exceeds the array")
+	register(m, "ewma", 1, 2, fnEwma,
+		"ewma(values, alpha?) -> float -- Exponentially weighted moving average (default alpha 0.3)")
+	register(m, "sign", 1, 1, fnSign,
+		"sign(x) -> float -- -1 when negative, 1 when positive, 0 when zero")
+	register(m, "random", 0, 0, fnRandom,
+		"random() -> float -- Random number in [0, 1). Not suitable for security purposes")
+	register(m, "random_int", 2, 2, fnRandomInt,
+		"random_int(min, max) -> int -- Random integer in [min, max]. Not suitable for security purposes")
 
-	// Namespace aliases
-	register(m, "system::math::clamp", 3, 3, fnClamp)
-	register(m, "system::math::lerp", 3, 3, fnLerp)
-	register(m, "system::math::normalize", 3, 3, fnNormalize)
-	register(m, "system::math::moving_avg", 2, 2, fnMovingAvg)
-	register(m, "system::math::ewma", 1, 2, fnEwma)
+	// Legacy namespace spellings. Registered as aliases so they can never
+	// describe or behave differently from the bare names above.
+	alias(m, "system::math::clamp", "clamp")
+	alias(m, "system::math::lerp", "lerp")
+	alias(m, "system::math::normalize", "normalize")
+	alias(m, "system::math::moving_avg", "moving_avg")
+	alias(m, "system::math::ewma", "ewma")
 }
 
 func fnClamp(args []any) (any, error) {

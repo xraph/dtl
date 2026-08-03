@@ -9,33 +9,49 @@ import (
 )
 
 func registerDatetime(m map[string]*executor.BuiltinFunc) {
-	register(m, "dt_add", 3, 3, fnDtAdd)
-	register(m, "dt_subtract", 3, 3, fnDtSubtract)
-	register(m, "diff", 3, 3, fnDiff)
-	register(m, "dt_format", 2, 2, fnDtFormat)
-	register(m, "year", 1, 1, fnYear)
-	register(m, "month", 1, 1, fnMonth)
-	register(m, "day", 1, 1, fnDay)
-	register(m, "hour", 1, 1, fnHour)
-	register(m, "minute", 1, 1, fnMinute)
-	register(m, "second", 1, 1, fnSecond)
-	register(m, "day_of_week", 1, 1, fnDayOfWeek)
-	register(m, "start_of", 2, 2, fnStartOf)
-	register(m, "end_of", 2, 2, fnEndOf)
-	register(m, "business_days_between", 2, 2, fnBusinessDaysBetween)
-	register(m, "is_business_day", 1, 1, fnIsBusinessDay)
-	register(m, "time_bucket", 2, 2, fnTimeBucket)
+	register(m, "dt_add", 3, 3, fnDtAdd,
+		"dt_add(dt, amount, unit) -> datetime -- Adds amount of unit ('seconds', 'minutes', 'hours', 'days', 'weeks')")
+	register(m, "dt_subtract", 3, 3, fnDtSubtract,
+		"dt_subtract(dt, amount, unit) -> datetime -- Subtracts amount of unit ('seconds', 'minutes', 'hours', 'days', 'weeks')")
+	register(m, "diff", 3, 3, fnDiff,
+		"diff(from, to, unit) -> int -- Whole units from `from` to `to`; negative when `to` precedes `from`")
+	register(m, "dt_format", 2, 2, fnDtFormat,
+		"dt_format(dt, format) -> string -- Formats using YYYY, MM, DD, HH, mm, ss tokens")
+	register(m, "year", 1, 1, fnYear,
+		"year(dt) -> int -- Calendar year")
+	register(m, "month", 1, 1, fnMonth,
+		"month(dt) -> int -- Month, 1-12")
+	register(m, "day", 1, 1, fnDay,
+		"day(dt) -> int -- Day of the month, 1-31")
+	register(m, "hour", 1, 1, fnHour,
+		"hour(dt) -> int -- Hour, 0-23")
+	register(m, "minute", 1, 1, fnMinute,
+		"minute(dt) -> int -- Minute, 0-59")
+	register(m, "second", 1, 1, fnSecond,
+		"second(dt) -> int -- Second, 0-59")
+	register(m, "day_of_week", 1, 1, fnDayOfWeek,
+		"day_of_week(dt) -> int -- Day of the week, 0 for Sunday through 6 for Saturday")
+	register(m, "start_of", 2, 2, fnStartOf,
+		"start_of(dt, unit) -> datetime -- Truncates down to the start of the 'minute', 'hour', 'day', 'week', 'month', or 'year'")
+	register(m, "end_of", 2, 2, fnEndOf,
+		"end_of(dt, unit) -> datetime -- Last instant of the 'minute', 'hour', 'day', 'week', 'month', or 'year'")
+	register(m, "business_days_between", 2, 2, fnBusinessDaysBetween,
+		"business_days_between(from, to) -> int -- Weekdays between two datetimes, excluding weekends")
+	register(m, "is_business_day", 1, 1, fnIsBusinessDay,
+		"is_business_day(dt) -> bool -- Whether the date falls Monday to Friday")
+	register(m, "time_bucket", 2, 2, fnTimeBucket,
+		"time_bucket(dt, unit) -> datetime -- Buckets a datetime down to the given unit. Same behaviour as start_of")
 
 	// Pipe-friendly aliases: "add" and "subtract" are registered under the
 	// namespaced form to avoid collision with arithmetic. Users pipe like:
 	//   dt | dt_add(7, "days")
-	register(m, "system::datetime::add", 3, 3, fnDtAdd)
-	register(m, "system::datetime::subtract", 3, 3, fnDtSubtract)
-	register(m, "system::datetime::diff", 3, 3, fnDiff)
-	register(m, "system::datetime::format", 2, 2, fnDtFormat)
-	register(m, "system::datetime::business_days_between", 2, 2, fnBusinessDaysBetween)
-	register(m, "system::datetime::is_business_day", 1, 1, fnIsBusinessDay)
-	register(m, "system::datetime::time_bucket", 2, 2, fnTimeBucket)
+	alias(m, "system::datetime::add", "dt_add")
+	alias(m, "system::datetime::subtract", "dt_subtract")
+	alias(m, "system::datetime::diff", "diff")
+	alias(m, "system::datetime::format", "dt_format")
+	alias(m, "system::datetime::business_days_between", "business_days_between")
+	alias(m, "system::datetime::is_business_day", "is_business_day")
+	alias(m, "system::datetime::time_bucket", "time_bucket")
 }
 
 func toTime(v any) (time.Time, error) {

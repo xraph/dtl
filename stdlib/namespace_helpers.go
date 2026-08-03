@@ -14,9 +14,12 @@ import (
 // namespaced names. These have no PlatformServices dependency: they're host
 // helpers that compose well with the dataset / event / identity surfaces.
 func registerNamespaceHelpers(m map[string]*executor.BuiltinFunc) {
-	register(m, "time::now", 0, 0, fnTimeNow)
-	register(m, "id::uuid", 0, 0, fnIDUUID)
-	register(m, "id::slug", 1, 1, fnIDSlug)
+	register(m, "time::now", 0, 0, fnTimeNow,
+		"time::now() -> datetime -- Current UTC time")
+	register(m, "id::uuid", 0, 0, fnIDUUID,
+		"id::uuid() -> string -- Freshly generated UUID v4")
+	register(m, "id::slug", 1, 1, fnIDSlug,
+		"id::slug(text) -> string -- Normalises text into a URL-safe slug. Deterministic, with no collision check")
 }
 
 func fnTimeNow(_ []any) (any, error) {

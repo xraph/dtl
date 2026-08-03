@@ -8,13 +8,20 @@ import (
 )
 
 func registerObjects(m map[string]*executor.BuiltinFunc) {
-	register(m, "keys", 1, 1, fnKeys)
-	register(m, "values", 1, 1, fnValues)
-	register(m, "entries", 1, 1, fnEntries)
-	register(m, "merge", 2, -1, fnMerge)
-	register(m, "pick", 2, 2, fnPick)
-	register(m, "omit", 2, 2, fnOmit)
-	register(m, "has_key", 2, 2, fnHasKey)
+	register(m, "keys", 1, 1, fnKeys,
+		"keys(obj) -> string[] -- Object keys, sorted")
+	register(m, "values", 1, 1, fnValues,
+		"values(obj) -> array -- Object values, ordered by sorted key")
+	register(m, "entries", 1, 1, fnEntries,
+		"entries(obj) -> array -- Object as [{key, value}] pairs, ordered by sorted key")
+	register(m, "merge", 2, -1, fnMerge,
+		"merge(a, b, ...) -> object -- Shallow merge; later values win. Errors when an argument is not an object")
+	register(m, "pick", 2, 2, fnPick,
+		"pick(obj, keys) -> object -- Keeps only the listed keys")
+	register(m, "omit", 2, 2, fnOmit,
+		"omit(obj, keys) -> object -- Removes the listed keys")
+	register(m, "has_key", 2, 2, fnHasKey,
+		"has_key(obj, key) -> bool -- Whether the key is present")
 }
 
 func fnKeys(args []any) (any, error) {

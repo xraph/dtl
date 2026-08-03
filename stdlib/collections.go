@@ -10,56 +10,94 @@ import (
 )
 
 func registerCollections(m map[string]*executor.BuiltinFunc) {
-	register(m, "map", 2, 2, fnMap)
-	register(m, "filter", 2, 2, fnFilter)
-	register(m, "reduce", 3, 3, fnReduce)
-	register(m, "sort", 1, 2, fnSort)
-	register(m, "sort_by", 2, 3, fnSortBy)
-	register(m, "tail", 2, 2, fnTail)
-	register(m, "head", 2, 2, fnHead)
-	register(m, "unique", 1, 1, fnUnique)
-	register(m, "range", 1, 2, fnRange)
-	register(m, "flatten", 1, 1, fnFlatten)
-	register(m, "zip", 2, 2, fnZip)
-	register(m, "group_by", 2, 2, fnGroupBy)
-	register(m, "chunk", 2, 2, fnChunk)
-	register(m, "first", 1, 1, fnFirst)
-	register(m, "last", 1, 1, fnLast)
-	register(m, "top_n", 2, 3, fnTopN)
-	register(m, "histogram", 1, 2, fnHistogram)
+	register(m, "map", 2, 2, fnMap,
+		"map(arr, fn) -> array -- Applies fn to every element")
+	register(m, "filter", 2, 2, fnFilter,
+		"filter(arr, fn) -> array -- Keeps the elements for which fn returns true")
+	register(m, "reduce", 3, 3, fnReduce,
+		"reduce(arr, init, fn) -> any -- Folds the array into a single value, starting from init")
+	register(m, "sort", 1, 2, fnSort,
+		"sort(arr, dir?) -> array -- Sorts ascending, or descending when dir is 'desc'")
+	register(m, "sort_by", 2, 3, fnSortBy,
+		"sort_by(arr, key, dir?) -> array -- Sorts objects by a key, descending when dir is 'desc'")
+	register(m, "tail", 2, 2, fnTail,
+		"tail(arr, n) -> array -- Last n elements")
+	register(m, "head", 2, 2, fnHead,
+		"head(arr, n) -> array -- First n elements")
+	register(m, "unique", 1, 1, fnUnique,
+		"unique(arr) -> array -- Removes duplicates, preserving first-seen order")
+	register(m, "range", 1, 2, fnRange,
+		"range(end) or range(start, end) -> int[] -- Integers from start (default 0) up to but excluding end")
+	register(m, "flatten", 1, 1, fnFlatten,
+		"flatten(arr) -> array -- Flattens one level of nesting")
+	register(m, "zip", 2, 2, fnZip,
+		"zip(a, b) -> array -- Pairs elements positionally, stopping at the shorter array")
+	register(m, "group_by", 2, 2, fnGroupBy,
+		"group_by(arr, key) -> object -- Groups objects into arrays keyed by the value at key")
+	register(m, "chunk", 2, 2, fnChunk,
+		"chunk(arr, size) -> array -- Splits into consecutive chunks of at most size")
+	register(m, "first", 1, 1, fnFirst,
+		"first(arr) -> any -- First element, or null when empty")
+	register(m, "last", 1, 1, fnLast,
+		"last(arr) -> any -- Last element, or null when empty")
+	register(m, "top_n", 2, 3, fnTopN,
+		"top_n(arr, n, key?) -> array -- Highest n elements, ranked by key when the elements are objects")
+	register(m, "histogram", 1, 2, fnHistogram,
+		"histogram(values, bins?) -> array -- Buckets values into equal-width bins (default 10)")
 
 	// Aggregation functions
-	register(m, "sum", 1, 1, fnSum)
-	register(m, "avg", 1, 1, fnAvg)
-	register(m, "min", 1, -1, fnMin)
-	register(m, "max", 1, -1, fnMax)
-	register(m, "count", 1, 1, fnCount)
-	register(m, "stdev", 1, 1, fnStdev)
-	register(m, "variance", 1, 1, fnVariance)
-	register(m, "median", 1, 1, fnMedian)
-	register(m, "percentile", 2, 2, fnPercentile)
-	register(m, "count_where", 2, 2, fnCountWhere)
-	register(m, "sum_where", 2, 2, fnSumWhere)
-	register(m, "find", 2, 2, fnFind)
-	register(m, "find_index", 2, 2, fnFindIndex)
-	register(m, "includes", 2, 2, fnIncludes)
-	register(m, "every", 2, 2, fnEvery)
-	register(m, "some", 2, 2, fnSome)
-	register(m, "reverse", 1, 1, fnReverseArr)
-	register(m, "seq", 1, 3, fnSeq)
-	register(m, "take_while", 2, 2, fnTakeWhile)
-	register(m, "drop_while", 2, 2, fnDropWhile)
-	register(m, "distinct_by", 2, 2, fnDistinctBy)
+	register(m, "sum", 1, 1, fnSum,
+		"sum(arr) -> float -- Sum of all elements")
+	register(m, "avg", 1, 1, fnAvg,
+		"avg(arr) -> float -- Arithmetic mean")
+	register(m, "min", 1, -1, fnMin,
+		"min(arr) or min(a, b, ...) -> float -- Smallest value")
+	register(m, "max", 1, -1, fnMax,
+		"max(arr) or max(a, b, ...) -> float -- Largest value")
+	register(m, "count", 1, 1, fnCount,
+		"count(arr) -> int -- Number of elements")
+	register(m, "stdev", 1, 1, fnStdev,
+		"stdev(arr) -> float -- Standard deviation")
+	register(m, "variance", 1, 1, fnVariance,
+		"variance(arr) -> float -- Variance")
+	register(m, "median", 1, 1, fnMedian,
+		"median(arr) -> float -- Middle value, averaging the two middle values when the count is even")
+	register(m, "percentile", 2, 2, fnPercentile,
+		"percentile(arr, p) -> float -- Value at percentile p, clamped to 0..100")
+	register(m, "count_where", 2, 2, fnCountWhere,
+		"count_where(arr, fn) -> int -- Number of elements for which fn returns true")
+	register(m, "sum_where", 2, 2, fnSumWhere,
+		"sum_where(arr, fn) -> float -- Sum of the elements for which fn returns true")
+	register(m, "find", 2, 2, fnFind,
+		"find(arr, fn) -> any -- First element for which fn returns true, or null")
+	register(m, "find_index", 2, 2, fnFindIndex,
+		"find_index(arr, fn) -> int -- Index of the first match, or -1")
+	register(m, "includes", 2, 2, fnIncludes,
+		"includes(arr, value) -> bool -- Whether the value is present")
+	register(m, "every", 2, 2, fnEvery,
+		"every(arr, fn) -> bool -- Whether fn returns true for every element")
+	register(m, "some", 2, 2, fnSome,
+		"some(arr, fn) -> bool -- Whether fn returns true for any element")
+	register(m, "reverse", 1, 1, fnReverseArr,
+		"reverse(arr) -> array -- Reverses element order")
+	register(m, "seq", 1, 3, fnSeq,
+		"seq(end) or seq(start, end, step?) -> int[] -- Integer sequence; steps backwards automatically when start exceeds end")
+	register(m, "take_while", 2, 2, fnTakeWhile,
+		"take_while(arr, fn) -> array -- Leading elements while fn returns true")
+	register(m, "drop_while", 2, 2, fnDropWhile,
+		"drop_while(arr, fn) -> array -- Remaining elements after the leading run for which fn returns true")
+	register(m, "distinct_by", 2, 2, fnDistinctBy,
+		"distinct_by(arr, key) -> array -- Keeps the first element for each distinct value at key")
 
-	// Namespace aliases
-	register(m, "system::collections::top_n", 2, 3, fnTopN)
-	register(m, "system::collections::histogram", 1, 2, fnHistogram)
-	register(m, "system::collections::find", 2, 2, fnFind)
-	register(m, "system::collections::find_index", 2, 2, fnFindIndex)
-	register(m, "system::collections::includes", 2, 2, fnIncludes)
-	register(m, "system::collections::every", 2, 2, fnEvery)
-	register(m, "system::collections::some", 2, 2, fnSome)
-	register(m, "system::collections::seq", 1, 3, fnSeq)
+	// Legacy namespace spellings, aliased so they cannot drift from the bare names.
+	alias(m, "system::collections::top_n", "top_n")
+	alias(m, "system::collections::histogram", "histogram")
+	alias(m, "system::collections::find", "find")
+	alias(m, "system::collections::find_index", "find_index")
+	alias(m, "system::collections::includes", "includes")
+	alias(m, "system::collections::every", "every")
+	alias(m, "system::collections::some", "some")
+	alias(m, "system::collections::seq", "seq")
 }
 
 func fnMap(args []any) (any, error) {

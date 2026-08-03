@@ -9,37 +9,58 @@ import (
 )
 
 func registerText(m map[string]*executor.BuiltinFunc) {
-	register(m, "upper", 1, 1, fnUpper)
-	register(m, "lower", 1, 1, fnLower)
-	register(m, "trim", 1, 1, fnTrim)
-	register(m, "replace", 3, 3, fnReplace)
-	register(m, "split", 2, 2, fnSplit)
-	register(m, "join", 2, 2, fnJoin)
-	register(m, "starts_with", 2, 2, fnStartsWith)
-	register(m, "contains", 2, 2, fnContains)
-	register(m, "substr", 2, 3, fnSubstr)
-	register(m, "slugify", 1, 1, fnSlugify)
-	register(m, "truncate", 2, 3, fnTruncate)
-	register(m, "extract_number", 1, 1, fnExtractNumber)
-	register(m, "match_regex", 2, 2, fnMatchRegex)
-	register(m, "ends_with", 2, 2, fnEndsWith)
-	register(m, "capitalize", 1, 1, fnCapitalize)
-	register(m, "title_case", 1, 1, fnTitleCase)
-	register(m, "pad_left", 2, 3, fnPadLeft)
-	register(m, "pad_right", 2, 3, fnPadRight)
-	register(m, "word_count", 1, 1, fnWordCount)
-	register(m, "repeat", 2, 2, fnRepeatStr)
-	register(m, "reverse_text", 1, 1, fnReverseText)
+	register(m, "upper", 1, 1, fnUpper,
+		"upper(s) -> string -- Converts to UPPERCASE")
+	register(m, "lower", 1, 1, fnLower,
+		"lower(s) -> string -- Converts to lowercase")
+	register(m, "trim", 1, 1, fnTrim,
+		"trim(s) -> string -- Removes leading and trailing whitespace")
+	register(m, "replace", 3, 3, fnReplace,
+		"replace(s, old, new) -> string -- Replaces every occurrence of old with new")
+	register(m, "split", 2, 2, fnSplit,
+		"split(s, sep) -> string[] -- Splits the string on a literal separator")
+	register(m, "join", 2, 2, fnJoin,
+		"join(arr, sep) -> string -- Joins array elements with a separator")
+	register(m, "starts_with", 2, 2, fnStartsWith,
+		"starts_with(s, prefix) -> bool -- Whether s begins with prefix")
+	register(m, "contains", 2, 2, fnContains,
+		"contains(s, substr) -> bool -- Whether s contains substr")
+	register(m, "substr", 2, 3, fnSubstr,
+		"substr(s, start, length?) -> string -- Substring from start, measured in characters. Runs to the end when length is omitted")
+	register(m, "slugify", 1, 1, fnSlugify,
+		"slugify(s) -> string -- Normalises text into a lowercase URL-safe slug")
+	register(m, "truncate", 2, 3, fnTruncate,
+		"truncate(s, length, suffix?) -> string -- Shortens s to length, appending suffix (default '...') when cut")
+	register(m, "extract_number", 1, 1, fnExtractNumber,
+		"extract_number(s) -> float -- First number found in the string")
+	register(m, "match_regex", 2, 2, fnMatchRegex,
+		"match_regex(s, pattern) -> string[] -- Every match of pattern in s. Legacy spelling of regex::find_all")
+	register(m, "ends_with", 2, 2, fnEndsWith,
+		"ends_with(s, suffix) -> bool -- Whether s ends with suffix")
+	register(m, "capitalize", 1, 1, fnCapitalize,
+		"capitalize(s) -> string -- Uppercases the first letter")
+	register(m, "title_case", 1, 1, fnTitleCase,
+		"title_case(s) -> string -- Uppercases the first letter of each word")
+	register(m, "pad_left", 2, 3, fnPadLeft,
+		"pad_left(s, length, char?) -> string -- Pads the start of s to length characters (default pad ' ')")
+	register(m, "pad_right", 2, 3, fnPadRight,
+		"pad_right(s, length, char?) -> string -- Pads the end of s to length characters (default pad ' ')")
+	register(m, "word_count", 1, 1, fnWordCount,
+		"word_count(s) -> int -- Number of whitespace-separated words")
+	register(m, "repeat", 2, 2, fnRepeatStr,
+		"repeat(s, n) -> string -- Concatenates n copies of s")
+	register(m, "reverse_text", 1, 1, fnReverseText,
+		"reverse_text(s) -> string -- Reverses the string, preserving multi-byte characters")
 
-	// Namespace aliases
-	register(m, "system::text::slugify", 1, 1, fnSlugify)
-	register(m, "system::text::truncate", 2, 3, fnTruncate)
-	register(m, "system::text::extract_number", 1, 1, fnExtractNumber)
-	register(m, "system::text::ends_with", 2, 2, fnEndsWith)
-	register(m, "system::text::capitalize", 1, 1, fnCapitalize)
-	register(m, "system::text::title_case", 1, 1, fnTitleCase)
-	register(m, "system::text::pad_left", 2, 3, fnPadLeft)
-	register(m, "system::text::pad_right", 2, 3, fnPadRight)
+	// Legacy namespace spellings, aliased so they cannot drift from the bare names.
+	alias(m, "system::text::slugify", "slugify")
+	alias(m, "system::text::truncate", "truncate")
+	alias(m, "system::text::extract_number", "extract_number")
+	alias(m, "system::text::ends_with", "ends_with")
+	alias(m, "system::text::capitalize", "capitalize")
+	alias(m, "system::text::title_case", "title_case")
+	alias(m, "system::text::pad_left", "pad_left")
+	alias(m, "system::text::pad_right", "pad_right")
 }
 
 func fnUpper(args []any) (any, error) {

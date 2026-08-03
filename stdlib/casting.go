@@ -9,18 +9,23 @@ import (
 )
 
 func registerCasting(m map[string]*executor.BuiltinFunc) {
-	register(m, "as_float", 1, 1, fnAsFloat)
-	register(m, "as_int", 1, 1, fnAsInt)
-	register(m, "as_string", 1, 1, fnAsString)
-	register(m, "as_bool", 1, 1, fnAsBool)
-	register(m, "as_datetime", 1, 2, fnAsDatetime)
+	register(m, "as_float", 1, 1, fnAsFloat,
+		"as_float(x) -> float -- Converts to a floating-point number")
+	register(m, "as_int", 1, 1, fnAsInt,
+		"as_int(x) -> int -- Converts to an integer, truncating any fraction")
+	register(m, "as_string", 1, 1, fnAsString,
+		"as_string(x) -> string -- Converts to a string")
+	register(m, "as_bool", 1, 1, fnAsBool,
+		"as_bool(x) -> bool -- Converts to a boolean")
+	register(m, "as_datetime", 1, 2, fnAsDatetime,
+		"as_datetime(x, format?) -> datetime -- Parses a string or timestamp into a datetime")
 
 	// Friendly aliases (non-devs expect "to" prefix)
-	register(m, "to_int", 1, 1, fnAsInt)
-	register(m, "to_float", 1, 1, fnAsFloat)
-	register(m, "to_bool", 1, 1, fnAsBool)
-	register(m, "to_date", 1, 2, fnAsDatetime)
-	register(m, "to_datetime", 1, 2, fnAsDatetime)
+	alias(m, "to_int", "as_int")
+	alias(m, "to_float", "as_float")
+	alias(m, "to_bool", "as_bool")
+	alias(m, "to_date", "as_datetime")
+	alias(m, "to_datetime", "as_datetime")
 }
 
 func fnAsFloat(args []any) (any, error) {

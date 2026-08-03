@@ -30,6 +30,11 @@ type BuiltinFunc struct {
 	// can access platform services (schema, query, pipeline, etc.).
 	// If CtxFn is set, Fn is ignored.
 	CtxFn func(ctx context.Context, args []any) (any, error)
+	// Doc is a one-line signature and description, surfaced by the language
+	// server as hover text and completion detail. The conventional shape is
+	// "name(args) -> type -- what it does". Host-registered builtins may set
+	// it to document themselves; an empty Doc simply yields no hover text.
+	Doc string
 }
 
 // CompiledFunction is a parsed+compiled user-defined function ready for execution.

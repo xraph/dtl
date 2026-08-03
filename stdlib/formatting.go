@@ -9,14 +9,17 @@ import (
 )
 
 func registerFormatting(m map[string]*executor.BuiltinFunc) {
-	register(m, "format_number", 1, 3, fnFormatNumber)
-	register(m, "format_currency", 1, 3, fnFormatCurrency)
-	register(m, "format_percent", 1, 2, fnFormatPercent)
+	register(m, "format_number", 1, 3, fnFormatNumber,
+		"format_number(n, decimals?, separator?) -> string -- Formats a number with a thousands separator (default ',')")
+	register(m, "format_currency", 1, 3, fnFormatCurrency,
+		"format_currency(n, currency?, locale?) -> string -- Formats a number as currency (USD, EUR, GBP, ...)")
+	register(m, "format_percent", 1, 2, fnFormatPercent,
+		"format_percent(n, decimals?) -> string -- Formats a number as a percentage")
 
-	// Namespace aliases
-	register(m, "system::formatting::format_number", 1, 3, fnFormatNumber)
-	register(m, "system::formatting::format_currency", 1, 3, fnFormatCurrency)
-	register(m, "system::formatting::format_percent", 1, 2, fnFormatPercent)
+	// Legacy namespace spellings, aliased so they cannot drift from the bare names.
+	alias(m, "system::formatting::format_number", "format_number")
+	alias(m, "system::formatting::format_currency", "format_currency")
+	alias(m, "system::formatting::format_percent", "format_percent")
 }
 
 func fnFormatNumber(args []any) (any, error) {

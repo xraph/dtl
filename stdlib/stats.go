@@ -8,14 +8,17 @@ import (
 )
 
 func registerStats(m map[string]*executor.BuiltinFunc) {
-	register(m, "z_score", 2, 2, fnZScore)
-	register(m, "outlier_bounds", 1, 2, fnOutlierBounds)
-	register(m, "correlation", 2, 2, fnCorrelation)
+	register(m, "z_score", 2, 2, fnZScore,
+		"z_score(value, values) -> float -- Standard deviations between value and the mean of values; 0 when values is empty or has no spread")
+	register(m, "outlier_bounds", 1, 2, fnOutlierBounds,
+		"outlier_bounds(values, factor?) -> object -- Tukey fences as {lower, upper}, using factor x IQR (default 1.5)")
+	register(m, "correlation", 2, 2, fnCorrelation,
+		"correlation(xs, ys) -> float -- Pearson correlation coefficient. Compares up to the shorter array's length")
 
-	// Namespace aliases
-	register(m, "system::stats::z_score", 2, 2, fnZScore)
-	register(m, "system::stats::outlier_bounds", 1, 2, fnOutlierBounds)
-	register(m, "system::stats::correlation", 2, 2, fnCorrelation)
+	// Legacy namespace spellings, aliased so they cannot drift from the bare names.
+	alias(m, "system::stats::z_score", "z_score")
+	alias(m, "system::stats::outlier_bounds", "outlier_bounds")
+	alias(m, "system::stats::correlation", "correlation")
 }
 
 func fnZScore(args []any) (any, error) {
