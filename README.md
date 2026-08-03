@@ -131,6 +131,30 @@ DTL has been in production use as an embedded language before being published
 here as a standalone project. The language and its specification are frozen
 across that move — behavior is unchanged, and the git history predates it.
 
+### Versioning
+
+Releases stay on the `v1` line. A conventional-commit `!` or `BREAKING CHANGE:`
+footer therefore resolves to a **minor** bump, not a major one — see
+`releaseRules` in `.releaserc.json`.
+
+That is deliberate, and it is a property of the module path rather than a
+statement about stability. Go requires major version 2 and above to carry a
+matching path suffix (`github.com/xraph/dtl/v2`). Until that migration happens,
+a `v2.x.y` tag on this repository is not installable at all:
+
+```
+go: github.com/xraph/dtl@v2.0.0: invalid version: module contains a go.mod
+    file, so module path must match major version ("github.com/xraph/dtl/v2")
+```
+
+So cutting a major is not a release decision that can be made on its own — it
+requires renaming the module and every import in the same change. Coupling the
+two here means a stray `!` in a commit message cannot silently publish a tag no
+one can install. Breaking changes still get an entry in `CHANGELOG.md` under
+"⚠ BREAKING CHANGES" and a migration note; only the version arithmetic differs.
+When a genuine `v2` is warranted, migrate the path and restore
+`"release": "major"` in the same pull request.
+
 ## Editor support
 
 Highlighting and language intelligence both ship with the language, so an

@@ -50,7 +50,7 @@
           },
           {
             "breaking": true,
-            "release": "major"
+            "release": "minor"
           }
         ]
       }

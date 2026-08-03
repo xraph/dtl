@@ -1,4 +1,4 @@
-## [2.0.0](https://github.com/xraph/dtl/compare/v1.4.0...v2.0.0) (2026-08-03)
+## [1.5.0](https://github.com/xraph/dtl/compare/v1.4.0...v1.5.0) (2026-08-03)
 
 ### ⚠ BREAKING CHANGES
 
