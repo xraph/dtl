@@ -81,7 +81,7 @@ func toTime(v any) (time.Time, error) {
 }
 
 func durationUnit(amount int, unit string) time.Duration {
-	unit = strings.ToLower(strings.TrimSuffix(unit, "s"))
+	unit = normalizeUnit(unit)
 	switch unit {
 	case "second":
 		return time.Duration(amount) * time.Second
@@ -106,7 +106,7 @@ func fnDtAdd(args []any) (any, error) {
 	amount := int(executor.ToInt(args[1]))
 	unit := executor.ToString(args[2])
 
-	unit = strings.ToLower(strings.TrimSuffix(unit, "s"))
+	unit = normalizeUnit(unit)
 	switch unit {
 	case "month":
 		return dt.AddDate(0, amount, 0), nil
@@ -125,7 +125,7 @@ func fnDtSubtract(args []any) (any, error) {
 	amount := int(executor.ToInt(args[1]))
 	unit := executor.ToString(args[2])
 
-	unit = strings.ToLower(strings.TrimSuffix(unit, "s"))
+	unit = normalizeUnit(unit)
 	switch unit {
 	case "month":
 		return dt.AddDate(0, -amount, 0), nil
@@ -148,7 +148,7 @@ func fnDiff(args []any) (any, error) {
 	unit := executor.ToString(args[2])
 	diff := dt2.Sub(dt1)
 
-	unit = strings.ToLower(strings.TrimSuffix(unit, "s"))
+	unit = normalizeUnit(unit)
 	switch unit {
 	case "second":
 		return int64(diff.Seconds()), nil
