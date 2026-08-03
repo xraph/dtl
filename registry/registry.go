@@ -264,13 +264,18 @@ func (r *Registry) Execute(ctx context.Context, fullName string, args map[string
 	}
 
 	args = r.injectGlobalVars(ctx, args)
-	debugCtx, debugBuf := executor.NewDebugContext(ctx)
-	result, err := r.executor.Execute(debugCtx, cf, args)
-	if err != nil {
-		return &ExecuteResult{Logs: *debugBuf}, err
-	}
 
-	return &ExecuteResult{Value: result, Logs: *debugBuf}, nil
+	// The result is allocated up front so the executor can append debug output
+	// straight into it. That address is the only sink the run needs, which is
+	// what keeps its per-call state off the heap.
+	res := &ExecuteResult{}
+	value, err := r.executor.ExecuteInto(ctx, cf, args, &res.Logs)
+	if err != nil {
+		return res, err
+	}
+	res.Value = value
+
+	return res, nil
 }
 
 // ExecuteInline parses, compiles, and executes a DTL source string without caching.
@@ -294,13 +299,15 @@ func (r *Registry) ExecuteInline(ctx context.Context, source string, args map[st
 	}
 
 	args = r.injectGlobalVars(ctx, args)
-	debugCtx, debugBuf := executor.NewDebugContext(ctx)
-	result, err := r.executor.Execute(debugCtx, cf, args)
-	if err != nil {
-		return &ExecuteResult{Logs: *debugBuf}, err
-	}
 
-	return &ExecuteResult{Value: result, Logs: *debugBuf}, nil
+	res := &ExecuteResult{}
+	value, err := r.executor.ExecuteInto(ctx, cf, args, &res.Logs)
+	if err != nil {
+		return res, err
+	}
+	res.Value = value
+
+	return res, nil
 }
 
 // injectGlobalVars adds the "global" object to args if present in context.

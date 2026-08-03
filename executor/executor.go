@@ -60,14 +60,27 @@ type DebugEntry struct {
 type debugBufferKey struct{}
 
 // NewDebugContext returns a context with an attached debug buffer.
+//
+// Deprecated: ExecuteWithDebug collects the same entries without allocating a
+// buffer and a context value on every call, whether or not the function ever
+// calls debug(). This remains for callers driving the executor directly, and
+// appendDebug still honours it.
 func NewDebugContext(ctx context.Context) (context.Context, *[]DebugEntry) {
 	buf := &[]DebugEntry{}
 	return context.WithValue(ctx, debugBufferKey{}, buf), buf
 }
 
-// appendDebug adds a debug entry to the context's buffer (no-op if no buffer).
-func appendDebug(ctx context.Context, entry DebugEntry) {
-	if buf, ok := ctx.Value(debugBufferKey{}).(*[]DebugEntry); ok {
+// appendDebug records an entry on the execution's own sink.
+//
+// Only debug() and print() reach here, so the sink stays nil for the
+// overwhelming majority of executions and costs nothing until first written.
+// The context lookup is the fallback for callers still using NewDebugContext.
+func (ec *evalCtx) appendDebug(entry DebugEntry) {
+	if ec.debug != nil {
+		*ec.debug = append(*ec.debug, entry)
+		return
+	}
+	if buf, ok := ec.ctx.Value(debugBufferKey{}).(*[]DebugEntry); ok {
 		*buf = append(*buf, entry)
 	}
 }
@@ -104,7 +117,37 @@ func New(builtins map[string]*BuiltinFunc, lookup FunctionLookup, config ExecCon
 
 // Execute runs a compiled function with the given arguments.
 func (ex *Executor) Execute(ctx context.Context, fn *CompiledFunction, args map[string]any) (any, error) {
+	return ex.ExecuteInto(ctx, fn, args, nil)
+}
+
+// ExecuteWithDebug runs a compiled function and returns whatever debug() and
+// print() emitted, without the per-call buffer and context value that
+// NewDebugContext costs. The returned slice is nil unless something was
+// emitted, so the common case allocates nothing for it.
+func (ex *Executor) ExecuteWithDebug(ctx context.Context, fn *CompiledFunction, args map[string]any) (any, []DebugEntry, error) {
+	var logs []DebugEntry
+	val, err := ex.ExecuteInto(ctx, fn, args, &logs)
+	return val, logs, err
+}
+
+// ExecuteInto runs a compiled function, appending any debug() or print()
+// output to *logs. Pass nil to discard it.
+//
+// This exists so a caller that already has somewhere to put the entries can
+// hand that address over — registry.Execute points it at the ExecuteResult it
+// was going to allocate regardless. Owning the destination is what keeps the
+// executor's own per-call state off the heap: a sink pointing into evalCtx
+// would force evalCtx itself to escape, trading one allocation for another.
+func (ex *Executor) ExecuteInto(ctx context.Context, fn *CompiledFunction, args map[string]any, logs *[]DebugEntry) (any, error) {
 	env := newEnv(nil)
+
+	ec := &evalCtx{
+		ctx:   ctx,
+		env:   env,
+		depth: 0,
+		start: time.Now(),
+		debug: logs,
+	}
 
 	// Bind parameters from args map, applying defaults and validating record types.
 	for _, param := range fn.AST.Params {
@@ -117,10 +160,9 @@ func (ex *Executor) Execute(ctx context.Context, fn *CompiledFunction, args map[
 			}
 			env.set(param.Name, val)
 		} else if param.Default != nil {
-			// Evaluate default in empty env
-			defVal, err := ex.evalExpr(&evalCtx{
-				ctx: ctx, env: env, depth: 0, start: time.Now(),
-			}, param.Default)
+			// Defaults evaluate in the scope built so far, so an earlier
+			// parameter is visible to a later one's default.
+			defVal, err := ex.evalExpr(ec, param.Default)
 			if err != nil {
 				return nil, fmt.Errorf("evaluating default for %s: %w", param.Name, err)
 			}
@@ -129,13 +171,6 @@ func (ex *Executor) Execute(ctx context.Context, fn *CompiledFunction, args map[
 			// No arg provided and no default — bind to nil so the variable exists
 			env.set(param.Name, nil)
 		}
-	}
-
-	ec := &evalCtx{
-		ctx:   ctx,
-		env:   env,
-		depth: 0,
-		start: time.Now(),
 	}
 
 	return ex.execBody(ec, fn.AST.Body)
@@ -153,27 +188,83 @@ func (ex *Executor) ExecuteExpr(ctx context.Context, expr ast.ExprNode, vars map
 
 // --- Environment (lexical scope chain) ---
 
+// envInline is how many bindings a scope holds without a second allocation.
+//
+// A map costs three allocations to reach one binding — the env, the hmap, and
+// its first bucket — and every scope in a DTL program pays that, including the
+// one-parameter functions that dominate real use. Scopes here are tiny and
+// short-lived, so inline storage with a linear scan is both fewer allocations
+// and fewer indirections than hashing. Four covers a function's parameters and
+// a couple of lets; anything wider spills to the slices below and still costs
+// only what a map would have.
+const envInline = 4
+
 type env struct {
 	parent *env
-	vars   map[string]any
+
+	n     int
+	names [envInline]string
+	vals  [envInline]any
+
+	// Spill storage, allocated only by a scope that exceeds envInline.
+	moreNames []string
+	moreVals  []any
 }
 
 func newEnv(parent *env) *env {
-	return &env{parent: parent, vars: make(map[string]any)}
+	return &env{parent: parent}
 }
 
-func (e *env) get(name string) (any, bool) {
-	if val, ok := e.vars[name]; ok {
-		return val, true
+// lookupLocal finds a binding in this scope only, without walking to parents.
+func (e *env) lookupLocal(name string) (any, bool) {
+	for i := 0; i < e.n; i++ {
+		if e.names[i] == name {
+			return e.vals[i], true
+		}
 	}
-	if e.parent != nil {
-		return e.parent.get(name)
+	for i, n := range e.moreNames {
+		if n == name {
+			return e.moreVals[i], true
+		}
 	}
 	return nil, false
 }
 
+func (e *env) get(name string) (any, bool) {
+	// Walk the chain iteratively; a deep scope chain would otherwise add a Go
+	// frame per level on a path already bounded by MaxDepth.
+	for s := e; s != nil; s = s.parent {
+		if val, ok := s.lookupLocal(name); ok {
+			return val, true
+		}
+	}
+	return nil, false
+}
+
+// set binds name in this scope, replacing any binding already made here.
+// Rebinding must overwrite rather than append, or a shadowed value could be
+// found first by the linear scan.
 func (e *env) set(name string, val any) {
-	e.vars[name] = val
+	for i := 0; i < e.n; i++ {
+		if e.names[i] == name {
+			e.vals[i] = val
+			return
+		}
+	}
+	for i, n := range e.moreNames {
+		if n == name {
+			e.moreVals[i] = val
+			return
+		}
+	}
+	if e.n < envInline {
+		e.names[e.n] = name
+		e.vals[e.n] = val
+		e.n++
+		return
+	}
+	e.moreNames = append(e.moreNames, name)
+	e.moreVals = append(e.moreVals, val)
 }
 
 // --- Evaluation context ---
@@ -183,6 +274,11 @@ type evalCtx struct {
 	env   *env
 	depth int
 	start time.Time
+
+	// debug points at the root execution's entry slice, shared by every nested
+	// scope. Nil when no sink was requested; the slice itself stays nil until a
+	// debug() or print() actually runs.
+	debug *[]DebugEntry
 }
 
 func (ec *evalCtx) checkLimits(ex *Executor) error {
@@ -572,7 +668,7 @@ func (ex *Executor) callFunction(ec *evalCtx, name string, args []any) (any, err
 				entry.Values = args[1:]
 			}
 		}
-		appendDebug(ec.ctx, entry)
+		ec.appendDebug(entry)
 		// Return last value so it's chainable
 		if len(args) > 0 {
 			return args[len(args)-1], nil
@@ -669,6 +765,7 @@ func (ex *Executor) callUserFunction(ec *evalCtx, fn *CompiledFunction, args []a
 		env:   newEnv(nil), // user functions get a clean scope
 		depth: ec.depth + 1,
 		start: ec.start,
+		debug: ec.debug, // a callee's debug() output belongs to the same run
 	}
 
 	if err := childEc.checkLimits(ex); err != nil {
@@ -694,7 +791,12 @@ func (ex *Executor) callUserFunction(ec *evalCtx, fn *CompiledFunction, args []a
 func (ex *Executor) evalLambda(ec *evalCtx, e *ast.LambdaExpr) (any, error) {
 	// Capture the current environment for closure
 	capturedEnv := ec.env
-	return &lambdaClosure{params: e.Params, body: e.Body, env: capturedEnv, executor: ex}, nil
+	return &lambdaClosure{
+		params: e.Params, body: e.Body, env: capturedEnv, executor: ex,
+		// Captured here rather than passed to Call, because the public
+		// CallLambda entry point stdlib uses carries only a context.
+		debug: ec.debug,
+	}, nil
 }
 
 // lambdaClosure captures a lambda and its enclosing environment.
@@ -703,6 +805,7 @@ type lambdaClosure struct {
 	body     ast.ExprNode
 	env      *env
 	executor *Executor
+	debug    *[]DebugEntry
 }
 
 // Call invokes a lambda closure with the given arguments.
@@ -713,7 +816,7 @@ func (lc *lambdaClosure) Call(ctx context.Context, args []any, start time.Time, 
 			childEnv.set(name, args[i])
 		}
 	}
-	ec := &evalCtx{ctx: ctx, env: childEnv, depth: depth, start: start}
+	ec := &evalCtx{ctx: ctx, env: childEnv, depth: depth, start: start, debug: lc.debug}
 	return lc.executor.evalExpr(ec, lc.body)
 }
 
@@ -845,7 +948,7 @@ func (ex *Executor) evalFor(ec *evalCtx, e *ast.ForExpr) (any, error) {
 		if e.Index != "" {
 			childEnv.set(e.Index, int64(i))
 		}
-		childEc := &evalCtx{ctx: ec.ctx, env: childEnv, depth: ec.depth, start: ec.start}
+		childEc := &evalCtx{ctx: ec.ctx, env: childEnv, depth: ec.depth, start: ec.start, debug: ec.debug}
 		val, err := ex.evalExpr(childEc, e.Body)
 		if err != nil {
 			return nil, err
