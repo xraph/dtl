@@ -80,11 +80,11 @@ Best in each row is **bold**.
 
 | workload | DTL | expr | cel-go | goja | gopher-lua | starlark |
 |---|--:|--:|--:|--:|--:|--:|
-| arith | 304 | 109 | 132 | 170 | **98** | 382 |
-| cond | 304 | 63 | 134 | 167 | **77** | 630 |
-| string | 463 | **155** | 229 | 400 | 290 | 509 |
-| field | 274 | 147 | **82** | 435 | 2704 ◆ | 773 |
-| collection | 20347 | **5211** | n/a | 12171 | 5216 | 6552 |
+| arith | 197 | 107 | 126 | 155 | **92** | 313 |
+| cond | 165 | 63 | 132 | 161 | **74** | 627 |
+| string | 328 | **157** | 235 | 403 | 285 | 487 |
+| field | 146 | 148 | **85** | 424 | 2733 ◆ | 767 |
+| collection | 11113 | **5038** | n/a | 11536 | 5153 | 6342 |
 
 ◆ dominated by per-call marshalling, see above.
 
@@ -92,9 +92,9 @@ Allocations per evaluation:
 
 | workload | DTL | expr | cel-go | goja | gopher-lua | starlark |
 |---|--:|--:|--:|--:|--:|--:|
-| arith | 496 B / 9 | 120 B / 5 | **40 B / 5** | 160 B / 2 | 16 B / 2 | 448 B / 14 |
-| cond | 472 B / 6 | 32 B / 1 | 24 B / 3 | 128 B / 3 | **8 B / 1** | 744 B / 28 |
-| collection | 37992 B / 320 | **3784 B / 56** | n/a | 7824 B / 115 | 7512 B / 104 | 3312 B / 151 |
+| arith | 264 B / 5 | 120 B / 5 | **40 B / 5** | 160 B / 2 | 16 B / 2 | 448 B / 14 |
+| cond | 240 B / 2 | 32 B / 1 | 24 B / 3 | 128 B / 3 | **8 B / 1** | 744 B / 28 |
+| collection | 21760 B / 116 | **3784 B / 56** | n/a | 7824 B / 115 | 7512 B / 104 | 3312 B / 151 |
 
 ### Compilation (cold start)
 
@@ -118,25 +118,32 @@ it hides how the cost splits. For DTL it splits sharply:
 
 **DTL is a tree-walking interpreter competing against bytecode VMs.** expr and
 gopher-lua compile to bytecode; DTL walks the AST. On evaluation it is
-consistently 2–4× behind expr and roughly 4× behind on the collection workload.
+still behind expr on every workload — around 2× on the small ones and on the
+collection workload — though it now matches expr on `field` and has closed most
+of the gap elsewhere.
 That is the expected shape, not a defect — but it is the honest headline.
 
-**Per-call overhead dominates small expressions.** The floor matters more than
-the expression:
+**Per-call overhead still sets the floor, but it is much lower than it was.**
 
 ```
-BenchmarkDTLExecuteNoop    269 ns/op    472 B/op    6 allocs/op
+BenchmarkDTLExecuteNoop    106 ns/op    240 B/op    2 allocs/op
 ```
 
-That is `fn f(a: float) -> float => a` — a bare parameter reference. The
-`arith` workload costs 304 ns, so evaluating `a + b * 2 - 1` adds only ~35 ns
-on top of 269 ns of fixed scaffolding. **Roughly 60–90% of a small DTL call is
-overhead, not evaluation**, and it is paid identically by every call.
+That is `fn f(a: float) -> float => a` — a bare parameter reference, and the
+minimum any DTL call can cost. It was 269 ns and 6 allocations before the
+per-call overhead work; what remains is one allocation for the root scope and
+one for the returned `ExecuteResult`.
 
-The six allocations on that no-op account for essentially all of it — see
-"Fixed per-call cost" in the review notes. This is the single highest-leverage
-thing to fix: it moves every workload at once, and needs no change to the
-evaluator's design.
+The four that went away were all scaffolding rather than evaluation:
+
+| allocation | why it is gone |
+|---|---|
+| scope map + its first bucket | scopes hold their bindings inline (`envInline`) |
+| debug buffer | allocated on first `debug()`/`print()`, not per call |
+| `context.WithValue` for that buffer | the sink is passed directly, not through the context |
+
+`field` is the clearest illustration: 274 ns → 146 ns, now level with expr,
+because that workload is almost entirely call overhead plus three map reads.
 
 **Where DTL already wins.** Compiling a function into a warm registry costs
 **2315 ns** — faster than expr (7881), cel-go (79328) and gopher-lua (85518).
