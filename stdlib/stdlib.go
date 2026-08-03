@@ -20,6 +20,9 @@ func RegisterAll(builtins map[string]*executor.BuiltinFunc) {
 	registerObjects(builtins)
 	registerPath(builtins)
 	registerRegex(builtins)
+	registerJSON(builtins)
+	registerEncoding(builtins)
+	registerHash(builtins)
 	registerNamespaceHelpers(builtins)
 }
 

@@ -28,6 +28,36 @@ func TestPhase1ThroughTheLanguage(t *testing.T) {
 			}, "yes"},
 		{"invert", `fn f(o: object) -> any => path::get(invert(o), "1")`,
 			map[string]any{"o": map[string]any{"a": "1"}}, "a"},
+
+		{"snake_case", `fn f(s: string) -> string => snake_case(s)`,
+			map[string]any{"s": "helloWorld"}, "hello_world"},
+		{"index_of composes with substr", `fn f(s: string) -> string => substr(s, index_of(s, "world"))`,
+			map[string]any{"s": "café world"}, "world"},
+		{"mask", `fn f(s: string) -> string => mask(s)`,
+			map[string]any{"s": "4111111111111111"}, "************1111"},
+
+		{"regex test", `fn f(s: string) -> bool => regex::test(s, "^a\\d+$")`,
+			map[string]any{"s": "a42"}, true},
+		{"regex replace", `fn f(s: string) -> string => regex::replace(s, "(\\w+) (\\w+)", "$2 $1")`,
+			map[string]any{"s": "hello world"}, "world hello"},
+		{"regex groups", `fn f(s: string) -> any => path::get(regex::groups(s, "(?P<n>\\d+)"), "n")`,
+			map[string]any{"s": "id-77"}, "77"},
+
+		{"json parse keeps ints", `fn f(s: string) -> any => path::get(json::parse(s), "id")`,
+			map[string]any{"s": `{"id": 12345}`}, int64(12345)},
+		{"json round trip", `fn f(s: string) -> string => json::stringify(json::parse(s))`,
+			map[string]any{"s": `{"a":1}`}, `{"a":1}`},
+		{"json is_valid", `fn f(s: string) -> bool => json::is_valid(s)`,
+			map[string]any{"s": "{oops"}, false},
+
+		{"base64 round trip", `fn f(s: string) -> string => encoding::base64_decode(encoding::base64_encode(s))`,
+			map[string]any{"s": "café"}, "café"},
+		{"url encode", `fn f(s: string) -> string => encoding::url_encode(s)`,
+			map[string]any{"s": "a b"}, "a+b"},
+
+		{"sha256", `fn f(s: string) -> string => hash::sha256(s)`,
+			map[string]any{"s": "abc"},
+			"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"},
 	}
 
 	for _, c := range cases {
