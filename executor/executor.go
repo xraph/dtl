@@ -73,8 +73,17 @@ func appendDebug(ctx context.Context, entry DebugEntry) {
 }
 
 // ExecConfig holds execution limits.
+//
+// Both fields use zero to mean "unbounded", which is the right primitive at
+// this layer but the wrong default for a host: unbounded depth ends in
+// `fatal error: stack overflow`, which no recover() can catch. Callers that
+// build an Executor directly own that choice. Anything constructed through
+// registry.New gets registry.DefaultMaxCallDepth instead.
 type ExecConfig struct {
-	Timeout  time.Duration
+	// Timeout bounds wall-clock time per execution. Zero means unbounded.
+	Timeout time.Duration
+
+	// MaxDepth bounds nested user-function calls. Zero means unbounded.
 	MaxDepth int
 }
 

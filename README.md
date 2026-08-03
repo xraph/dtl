@@ -102,6 +102,29 @@ ctx = capability.WithInterceptor(ctx, func(ctx context.Context, fn string) conte
 With no interceptor installed the gate is inert and you get a plain
 interpreter — absence means unrestricted, deliberately.
 
+### Execution limits
+
+`Config.MaxCallDepth` bounds nested user-function calls. Left at zero it
+selects `registry.DefaultMaxCallDepth` (1000), which is deliberate: unbounded
+recursion exhausts the goroutine stack, and Go raises that as
+`fatal error: stack overflow` — not a panic, so `recover()` cannot catch it and
+the host process dies. A negative value disables the limit and restores that
+exposure; set it only for input you control.
+
+`Config.DefaultTimeout` bounds wall-clock time per execution and is **not**
+defaulted — zero means no timeout. A limit that aborts a legitimately slow
+transformation is a policy only you can set, so if you evaluate untrusted
+source, set one:
+
+```go
+reg := registry.New(registry.Config{
+	DefaultTimeout: 100 * time.Millisecond,
+})
+```
+
+Neither limit constrains a builtin you register yourself; those run your Go
+code, and bounding it is yours to do.
+
 ## Status
 
 DTL has been in production use as an embedded language before being published

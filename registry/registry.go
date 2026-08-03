@@ -14,10 +14,44 @@ import (
 	"github.com/xraph/dtl/stdlib"
 )
 
+// DefaultMaxCallDepth bounds user-function call depth when Config.MaxCallDepth
+// is left at zero.
+//
+// This default is not a tuning choice, it is a safety one. Exhausting the
+// goroutine stack raises `fatal error: stack overflow`, which — unlike a panic
+// — cannot be recovered and takes the whole host process down with it. A
+// registry built from a zero-value Config is the documented way to embed DTL,
+// so that path must not be the unbounded one.
+//
+// 1000 frames is far below the depth at which the stack is at risk and well
+// above any plausible transformation, so legitimate work never meets it.
+const DefaultMaxCallDepth = 1000
+
 // Config holds registry configuration.
 type Config struct {
+	// DefaultTimeout bounds wall-clock time for a single execution.
+	// Zero means no timeout; it is not defaulted, because a limit that aborts
+	// a legitimately slow transformation is a policy only the host can set.
 	DefaultTimeout time.Duration
-	MaxCallDepth   int
+
+	// MaxCallDepth bounds nested user-function calls. Zero selects
+	// DefaultMaxCallDepth. A negative value disables the limit entirely and
+	// re-exposes the host process to an unrecoverable stack overflow — only
+	// set it for trusted input you control.
+	MaxCallDepth int
+}
+
+// resolveMaxDepth maps Config.MaxCallDepth onto the executor's limit, whose
+// own convention is that zero means unbounded.
+func resolveMaxDepth(configured int) int {
+	switch {
+	case configured == 0:
+		return DefaultMaxCallDepth
+	case configured < 0:
+		return 0 // explicit opt-out: executor treats 0 as no limit
+	default:
+		return configured
+	}
 }
 
 // ExecuteResult holds the execution result along with any debug output.
@@ -64,7 +98,7 @@ func New(config Config) *Registry {
 	// Create the executor with the registry as function lookup
 	r.executor = executor.New(builtins, r, executor.ExecConfig{
 		Timeout:  config.DefaultTimeout,
-		MaxDepth: config.MaxCallDepth,
+		MaxDepth: resolveMaxDepth(config.MaxCallDepth),
 	})
 
 	return r
