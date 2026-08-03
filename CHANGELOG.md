@@ -1,3 +1,24 @@
+## [1.4.0](https://github.com/xraph/dtl/compare/v1.3.0...v1.4.0) (2026-08-03)
+
+### Features
+
+* **parser:** bare lambdas and the comparison shorthand ([cd82d41](https://github.com/xraph/dtl/commit/cd82d41c249bd18829ac474e878a23c7f04828aa))
+* **stdlib:** add case conversion, trimming, indexing, and masking ([d4f396c](https://github.com/xraph/dtl/commit/d4f396c179a6968fc4d327918778b6688d5998f2))
+* **stdlib:** add json::, encoding::, and hash:: ([b723321](https://github.com/xraph/dtl/commit/b723321e80a8c9517f0e33b9944314b9aed3bfbf))
+* **stdlib:** add null handling, dotted-path access, and object reshaping ([d550707](https://github.com/xraph/dtl/commit/d550707d680e445c4d439d83d41c9952c8209775))
+* **stdlib:** add regex:: over a bounded compiled-pattern cache ([a299aaf](https://github.com/xraph/dtl/commit/a299aafa904967d2f3ca4df5d916cf0741dfbf79))
+* **stdlib:** document every builtin at its registration site ([dc4380d](https://github.com/xraph/dtl/commit/dc4380d3deddeaec0a2ea90a60d7e496c0038515))
+* **stdlib:** fill out collections, math, datetime, and stats ([f92e230](https://github.com/xraph/dtl/commit/f92e2306893614014425e1f8704d3eb8959adc0d))
+
+### Bug Fixes
+
+* **stdlib:** reject unknown datetime units instead of guessing ([93aa244](https://github.com/xraph/dtl/commit/93aa2444221cf4f832acf0e5f4c59ed6e0d84eeb))
+
+### Documentation
+
+* describe the standard library as it actually ships ([98c3473](https://github.com/xraph/dtl/commit/98c3473043a75e7680a9aba3b6bf7792ba0dd287))
+* design for standard library expansion ([837aba0](https://github.com/xraph/dtl/commit/837aba067f216c633338d44648b7ae360b7a5aa7))
+
 ## [1.3.0](https://github.com/xraph/dtl/compare/v1.2.1...v1.3.0) (2026-08-02)
 
 ### Features
