@@ -24,6 +24,11 @@ type Parser struct {
 	pos     int
 	errors  []ParseError
 	current lexer.Token
+	// inPattern suppresses bare-lambda detection. A match arm is written
+	// `when <pattern> => <result>`, and patterns are parsed through
+	// parsePrimary, so `when FOO => x` would otherwise read FOO's trailing
+	// arrow as a lambda and swallow the arm's result as its body.
+	inPattern bool
 }
 
 // Parse tokenizes source and parses a function definition.
@@ -79,6 +84,16 @@ func ParseExpression(source string) (ast.ExprNode, []ParseError) {
 
 func (p *Parser) peek() lexer.Token {
 	return p.current
+}
+
+// peekAhead returns the token n positions past the current one, or EOF.
+// peek() reports the current token rather than a lookahead, so a grammar
+// decision that depends on what follows needs this.
+func (p *Parser) peekAhead(n int) lexer.Token {
+	if p.pos+n < len(p.tokens) {
+		return p.tokens[p.pos+n]
+	}
+	return lexer.Token{Type: lexer.TokenEOF}
 }
 
 func (p *Parser) advance() lexer.Token {
@@ -696,6 +711,12 @@ func (p *Parser) parsePrimary() ast.ExprNode {
 		tok := p.advance()
 		return &ast.LiteralExpr{Pos: tok.Pos, Value: nil, Type: "null"}
 	case lexer.TokenIdent:
+		// A single unparenthesised parameter: `x => x * 2`. Only an arrow
+		// immediately after a plain identifier means a lambda, so an ordinary
+		// identifier, a call, and a namespaced name are all unaffected.
+		if !p.inPattern && p.peekAhead(1).Type == lexer.TokenArrow {
+			return p.parseBareLambda()
+		}
 		return p.parseIdentOrCall()
 	case lexer.TokenLParen:
 		return p.parseGroupOrLambda()
@@ -814,6 +835,18 @@ func (p *Parser) parseIdentOrCall() ast.ExprNode {
 	}
 
 	return &ast.IdentExpr{Pos: tok.Pos, Name: name}
+}
+
+// parseBareLambda parses a single-parameter lambda written without parentheses:
+// `x => x * 2`. It is the form the collection operations are documented with
+// and the one most authors reach for; `(x) => ...` and `fn (x) => ...` remain
+// valid and produce the same node.
+func (p *Parser) parseBareLambda() ast.ExprNode {
+	param := p.advance() // parameter name
+	p.advance()          // consume =>
+	p.skipLayout()
+	body := p.parseExpr()
+	return &ast.LambdaExpr{Pos: param.Pos, Params: []string{param.Val}, Body: body}
 }
 
 func (p *Parser) parseGroupOrLambda() ast.ExprNode {
@@ -1074,6 +1107,12 @@ func (p *Parser) parseMatchArm() ast.MatchArm {
 func (p *Parser) parsePattern() ast.PatternNode {
 	pos := p.current.Pos
 
+	// Everything below reaches parsePrimary, and every pattern is followed by
+	// the arm's `=>`. Without this the arrow would be read as a lambda.
+	prev := p.inPattern
+	p.inPattern = true
+	defer func() { p.inPattern = prev }()
+
 	// Wildcard: _
 	if p.current.Type == lexer.TokenIdent && p.current.Val == "_" {
 		p.advance()
@@ -1209,7 +1248,12 @@ func (p *Parser) parseArgList() []ast.ExprNode {
 
 	for {
 		p.skipLayout()
-		arg := p.parseExpr()
+		var arg ast.ExprNode
+		if p.match(lexer.TokenLt, lexer.TokenGt, lexer.TokenLe, lexer.TokenGe, lexer.TokenEq, lexer.TokenNe) {
+			arg = p.parseImplicitLambda()
+		} else {
+			arg = p.parseExpr()
+		}
 		args = append(args, arg)
 		p.skipLayout()
 		if p.current.Type != lexer.TokenComma {
@@ -1218,4 +1262,30 @@ func (p *Parser) parseArgList() []ast.ExprNode {
 		p.advance() // consume comma
 	}
 	return args
+}
+
+// implicitLambdaParam names the parameter the shorthand introduces.
+//
+// It deliberately is not a writable identifier. A name an author could type —
+// `it`, say — would be captured by the body: `filter(> it)` alongside an outer
+// `let it = 5` would compile to `it > it` and silently compare the element with
+// itself.
+const implicitLambdaParam = "<implicit>"
+
+// parseImplicitLambda desugars a comparison written without a left operand into
+// a predicate over one argument, so `filter(> 0)` means `filter(x => x > 0)`.
+// The shorthand is recognised only in an argument list, where a leading
+// comparison operator cannot be anything else.
+func (p *Parser) parseImplicitLambda() ast.ExprNode {
+	op := p.advance()
+	p.skipLayout()
+	right := p.parseExpr()
+
+	body := &ast.BinaryExpr{
+		Pos:   op.Pos,
+		Op:    op.Val,
+		Left:  &ast.IdentExpr{Pos: op.Pos, Name: implicitLambdaParam},
+		Right: right,
+	}
+	return &ast.LambdaExpr{Pos: op.Pos, Params: []string{implicitLambdaParam}, Body: body}
 }

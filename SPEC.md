@@ -167,7 +167,24 @@ query("sensor_readings")
 
 ### 6. Collection Operations
 
-These work on arrays and are designed to pipe naturally:
+These work on arrays and are designed to pipe naturally.
+
+**Lambdas** may be written three ways, all producing the same thing. A single
+parameter needs no parentheses:
+
+```
+x => x * 2            -- bare, one parameter
+(acc, x) => acc + x   -- parenthesised, required for two or more
+fn (x) => x * 2       -- explicit fn form
+```
+
+**Comparison shorthand.** In an argument list, a comparison written without a
+left operand becomes a predicate over one argument, so `filter(> 0)` means
+`filter(x => x > 0)`. It accepts `>`, `<`, `>=`, `<=`, `==` and `!=`.
+
+**Key selectors are not uniform.** `group_by`, `distinct_by`, `count_by`,
+`index_by`, `sum_by`, `avg_by`, `min_by` and `max_by` take a lambda;
+`sort_by` and `top_n` take a string field name.
 
 ```
 values | map(x => x * 2)              -- transform each element

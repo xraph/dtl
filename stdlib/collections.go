@@ -33,7 +33,7 @@ func registerCollections(m map[string]*executor.BuiltinFunc) {
 	register(m, "zip", 2, 2, fnZip,
 		"zip(a, b) -> array -- Pairs elements positionally, stopping at the shorter array")
 	register(m, "group_by", 2, 2, fnGroupBy,
-		"group_by(arr, key) -> object -- Groups objects into arrays keyed by the value at key")
+		"group_by(arr, fn) -> object -- Groups elements into arrays keyed by fn's result")
 	register(m, "chunk", 2, 2, fnChunk,
 		"chunk(arr, size) -> array -- Splits into consecutive chunks of at most size")
 	register(m, "first", 1, 1, fnFirst,
@@ -87,7 +87,7 @@ func registerCollections(m map[string]*executor.BuiltinFunc) {
 	register(m, "drop_while", 2, 2, fnDropWhile,
 		"drop_while(arr, fn) -> array -- Remaining elements after the leading run for which fn returns true")
 	register(m, "distinct_by", 2, 2, fnDistinctBy,
-		"distinct_by(arr, key) -> array -- Keeps the first element for each distinct value at key")
+		"distinct_by(arr, fn) -> array -- Keeps the first element for each distinct fn result")
 
 	// Legacy namespace spellings, aliased so they cannot drift from the bare names.
 	alias(m, "system::collections::top_n", "top_n")
