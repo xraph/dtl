@@ -1,1 +1,6 @@
 .superpowers/
+
+# Compiled binaries. Go's cmd/<name>/ convention builds a binary named after
+# its directory, so `go build ./...` inside cmd/dtl-lsp/ writes it in place.
+# Add a line here for each new cmd/ binary.
+/cmd/dtl-lsp/dtl-lsp
