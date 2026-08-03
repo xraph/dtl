@@ -1,3 +1,13 @@
+## [1.5.1](https://github.com/xraph/dtl/compare/v1.5.0...v1.5.1) (2026-08-03)
+
+### Bug Fixes
+
+* **registry:** bound call depth by default ([b191334](https://github.com/xraph/dtl/commit/b1913347d50fb88314732b6a78f91a2c658e993c))
+
+### Documentation
+
+* **spec:** quote the sort direction argument ([e7675a7](https://github.com/xraph/dtl/commit/e7675a7eec0eac3f630c33cb4143ec546d4c5dc9))
+
 ## [1.5.0](https://github.com/xraph/dtl/compare/v1.4.0...v1.5.0) (2026-08-03)
 
 ### ⚠ BREAKING CHANGES
