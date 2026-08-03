@@ -1,3 +1,14 @@
+## [1.5.5](https://github.com/xraph/dtl/compare/v1.5.4...v1.5.5) (2026-08-03)
+
+### Bug Fixes
+
+* **executor:** apply depth and timeout limits inside lambdas ([f96c35f](https://github.com/xraph/dtl/commit/f96c35f2a3b5a5c2baccb8f8b6628678f24bd0f3))
+
+### Documentation
+
+* **benchmarks:** refresh results after the collection work ([54e8155](https://github.com/xraph/dtl/commit/54e8155bc779f718551b56eea02537f77708b676))
+* do not name the fixing release before it is cut ([9a6a1c8](https://github.com/xraph/dtl/commit/9a6a1c891d8d67e553ff303de7c0240791ff4264))
+
 ## [1.5.4](https://github.com/xraph/dtl/compare/v1.5.3...v1.5.4) (2026-08-03)
 
 ### Documentation
