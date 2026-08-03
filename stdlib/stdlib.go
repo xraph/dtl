@@ -11,6 +11,7 @@ func RegisterAll(builtins map[string]*executor.BuiltinFunc) {
 	registerCore(builtins)
 	registerMath(builtins)
 	registerText(builtins)
+	registerTextCase(builtins)
 	registerDatetime(builtins)
 	registerStats(builtins)
 	registerCollections(builtins)
