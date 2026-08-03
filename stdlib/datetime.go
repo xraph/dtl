@@ -10,11 +10,11 @@ import (
 
 func registerDatetime(m map[string]*executor.BuiltinFunc) {
 	register(m, "dt_add", 3, 3, fnDtAdd,
-		"dt_add(dt, amount, unit) -> datetime -- Adds amount of unit ('seconds', 'minutes', 'hours', 'days', 'weeks')")
+		"dt_add(dt, amount, unit) -> datetime -- Adds amount of unit: seconds, minutes, hours, days, weeks, months, years. Errors on an unknown unit")
 	register(m, "dt_subtract", 3, 3, fnDtSubtract,
-		"dt_subtract(dt, amount, unit) -> datetime -- Subtracts amount of unit ('seconds', 'minutes', 'hours', 'days', 'weeks')")
+		"dt_subtract(dt, amount, unit) -> datetime -- Subtracts amount of unit: seconds, minutes, hours, days, weeks, months, years. Errors on an unknown unit")
 	register(m, "diff", 3, 3, fnDiff,
-		"diff(from, to, unit) -> int -- Whole units from `from` to `to`; negative when `to` precedes `from`")
+		"diff(from, to, unit) -> int -- Whole seconds, minutes, hours or days from `from` to `to`; negative when `to` precedes `from`. Errors on an unknown unit")
 	register(m, "dt_format", 2, 2, fnDtFormat,
 		"dt_format(dt, format) -> string -- Formats using YYYY, MM, DD, HH, mm, ss tokens")
 	register(m, "year", 1, 1, fnYear,
@@ -32,15 +32,15 @@ func registerDatetime(m map[string]*executor.BuiltinFunc) {
 	register(m, "day_of_week", 1, 1, fnDayOfWeek,
 		"day_of_week(dt) -> int -- Day of the week, 0 for Sunday through 6 for Saturday")
 	register(m, "start_of", 2, 2, fnStartOf,
-		"start_of(dt, unit) -> datetime -- Truncates down to the start of the 'minute', 'hour', 'day', 'week', 'month', or 'year'")
+		"start_of(dt, unit) -> datetime -- Truncates down to the start of the minute, hour, day, week, month or year. Errors on an unknown unit")
 	register(m, "end_of", 2, 2, fnEndOf,
-		"end_of(dt, unit) -> datetime -- Last instant of the 'minute', 'hour', 'day', 'week', 'month', or 'year'")
+		"end_of(dt, unit) -> datetime -- Last instant of the minute, hour, day, week, month or year. Errors on an unknown unit")
 	register(m, "business_days_between", 2, 2, fnBusinessDaysBetween,
 		"business_days_between(from, to) -> int -- Weekdays between two datetimes, excluding weekends")
 	register(m, "is_business_day", 1, 1, fnIsBusinessDay,
 		"is_business_day(dt) -> bool -- Whether the date falls Monday to Friday")
 	register(m, "time_bucket", 2, 2, fnTimeBucket,
-		"time_bucket(dt, unit) -> datetime -- Buckets a datetime down to the given unit. Same behaviour as start_of")
+		"time_bucket(dt, unit) -> datetime -- Buckets a datetime down to the given unit. Same behaviour as start_of, including rejecting an unknown unit")
 
 	// Pipe-friendly aliases: "add" and "subtract" are registered under the
 	// namespaced form to avoid collision with arithmetic. Users pipe like:
@@ -80,22 +80,33 @@ func toTime(v any) (time.Time, error) {
 	}
 }
 
-func durationUnit(amount int, unit string) time.Duration {
-	unit = normalizeUnit(unit)
-	switch unit {
+// durationUnit converts an amount and a unit name into a duration.
+//
+// An unrecognised unit is an error rather than a silent fallback. It used to
+// default to seconds, so dt_add(dt, 1, "fortnights") advanced the datetime by
+// one second and reported success — a wrong answer that looks like a right one
+// and survives every test written with a unit the switch happens to cover.
+func durationUnit(amount int, unit string) (time.Duration, error) {
+	switch normalizeUnit(unit) {
 	case "second":
-		return time.Duration(amount) * time.Second
+		return time.Duration(amount) * time.Second, nil
 	case "minute":
-		return time.Duration(amount) * time.Minute
+		return time.Duration(amount) * time.Minute, nil
 	case "hour":
-		return time.Duration(amount) * time.Hour
+		return time.Duration(amount) * time.Hour, nil
 	case "day":
-		return time.Duration(amount) * 24 * time.Hour
+		return time.Duration(amount) * 24 * time.Hour, nil
 	case "week":
-		return time.Duration(amount) * 7 * 24 * time.Hour
+		return time.Duration(amount) * 7 * 24 * time.Hour, nil
 	default:
-		return time.Duration(amount) * time.Second
+		return 0, unknownUnit(unit, "seconds, minutes, hours, days, weeks, months, years")
 	}
+}
+
+// unknownUnit builds the error every unit-taking function reports, listing what
+// it would have accepted so the fix is visible without opening the source.
+func unknownUnit(unit, accepted string) error {
+	return fmt.Errorf("unknown unit %q (expected one of: %s)", unit, accepted)
 }
 
 func fnDtAdd(args []any) (any, error) {
@@ -106,14 +117,17 @@ func fnDtAdd(args []any) (any, error) {
 	amount := int(executor.ToInt(args[1]))
 	unit := executor.ToString(args[2])
 
-	unit = normalizeUnit(unit)
-	switch unit {
+	switch normalizeUnit(unit) {
 	case "month":
 		return dt.AddDate(0, amount, 0), nil
 	case "year":
 		return dt.AddDate(amount, 0, 0), nil
 	default:
-		return dt.Add(durationUnit(amount, unit)), nil
+		d, err := durationUnit(amount, unit)
+		if err != nil {
+			return nil, fmt.Errorf("dt_add: %w", err)
+		}
+		return dt.Add(d), nil
 	}
 }
 
@@ -125,14 +139,17 @@ func fnDtSubtract(args []any) (any, error) {
 	amount := int(executor.ToInt(args[1]))
 	unit := executor.ToString(args[2])
 
-	unit = normalizeUnit(unit)
-	switch unit {
+	switch normalizeUnit(unit) {
 	case "month":
 		return dt.AddDate(0, -amount, 0), nil
 	case "year":
 		return dt.AddDate(-amount, 0, 0), nil
 	default:
-		return dt.Add(-durationUnit(amount, unit)), nil
+		d, err := durationUnit(amount, unit)
+		if err != nil {
+			return nil, fmt.Errorf("dt_subtract: %w", err)
+		}
+		return dt.Add(-d), nil
 	}
 }
 
@@ -148,8 +165,7 @@ func fnDiff(args []any) (any, error) {
 	unit := executor.ToString(args[2])
 	diff := dt2.Sub(dt1)
 
-	unit = normalizeUnit(unit)
-	switch unit {
+	switch normalizeUnit(unit) {
 	case "second":
 		return int64(diff.Seconds()), nil
 	case "minute":
@@ -159,7 +175,7 @@ func fnDiff(args []any) (any, error) {
 	case "day":
 		return int64(diff.Hours() / 24), nil
 	default:
-		return int64(diff.Seconds()), nil
+		return nil, fmt.Errorf("diff: %w", unknownUnit(unit, "seconds, minutes, hours, days"))
 	}
 }
 
@@ -235,8 +251,8 @@ func fnStartOf(args []any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	unit := strings.ToLower(executor.ToString(args[1]))
-	switch unit {
+	unit := executor.ToString(args[1])
+	switch normalizeUnit(unit) {
 	case "day":
 		return time.Date(dt.Year(), dt.Month(), dt.Day(), 0, 0, 0, 0, dt.Location()), nil
 	case "week":
@@ -251,7 +267,7 @@ func fnStartOf(args []any) (any, error) {
 	case "minute":
 		return time.Date(dt.Year(), dt.Month(), dt.Day(), dt.Hour(), dt.Minute(), 0, 0, dt.Location()), nil
 	default:
-		return dt, nil
+		return nil, fmt.Errorf("start_of: %w", unknownUnit(unit, "minute, hour, day, week, month, year"))
 	}
 }
 
@@ -260,8 +276,8 @@ func fnEndOf(args []any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	unit := strings.ToLower(executor.ToString(args[1]))
-	switch unit {
+	unit := executor.ToString(args[1])
+	switch normalizeUnit(unit) {
 	case "day":
 		return time.Date(dt.Year(), dt.Month(), dt.Day(), 23, 59, 59, 999999999, dt.Location()), nil
 	case "week":
@@ -275,8 +291,16 @@ func fnEndOf(args []any) (any, error) {
 	case "year":
 		first := time.Date(dt.Year()+1, 1, 1, 0, 0, 0, 0, dt.Location())
 		return first.Add(-time.Nanosecond), nil
+	// hour and minute mirror start_of, which has always accepted them. end_of
+	// did not, so it silently returned the input unchanged for a unit its
+	// counterpart handled. Now that an unknown unit is an error, the asymmetry
+	// would turn a silent no-op into a failure on a perfectly reasonable call.
+	case "hour":
+		return time.Date(dt.Year(), dt.Month(), dt.Day(), dt.Hour(), 59, 59, 999999999, dt.Location()), nil
+	case "minute":
+		return time.Date(dt.Year(), dt.Month(), dt.Day(), dt.Hour(), dt.Minute(), 59, 999999999, dt.Location()), nil
 	default:
-		return dt, nil
+		return nil, fmt.Errorf("end_of: %w", unknownUnit(unit, "minute, hour, day, week, month, year"))
 	}
 }
 

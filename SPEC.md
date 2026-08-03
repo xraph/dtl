@@ -424,8 +424,9 @@ purposes**.
 `time_bucket` `dt_in_zone` `is_before` `is_after` `is_between`
 `is_business_day` `business_days_between`
 
-Unit names are case-insensitive and accept singular or plural. `diff` returns
-whole units; `duration_between` returns a fractional count.
+Unit names are case-insensitive and accept singular or plural, so `"Days"`,
+`"days"` and `"day"` are the same unit. **An unrecognised unit is an error.**
+`diff` returns whole units; `duration_between` returns a fractional count.
 
 ### Casting and formatting
 

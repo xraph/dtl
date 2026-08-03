@@ -3,6 +3,7 @@ package stdlib
 import (
 	"math"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -603,5 +604,101 @@ func TestUnitNamesAreCaseInsensitive(t *testing.T) {
 				t.Errorf("dt_subtract 1 %q moved by %v, want 24h", unit, delta)
 			}
 		})
+	}
+}
+
+// An unrecognised unit is an error rather than a silent fallback.
+//
+// Each of these previously produced a plausible-looking wrong answer: diff
+// returned seconds, dt_add and dt_subtract moved by one second, and start_of,
+// end_of and time_bucket returned the input untouched. All reported success, so
+// nothing downstream could tell the difference.
+func TestUnknownUnitsAreRejected(t *testing.T) {
+	base := time.Date(2024, 3, 15, 12, 30, 45, 0, time.UTC)
+	later := base.Add(48 * time.Hour)
+
+	tests := []struct {
+		name string
+		call func(unit string) (any, error)
+	}{
+		{"diff", func(u string) (any, error) { return fnDiff([]any{base, later, u}) }},
+		{"dt_add", func(u string) (any, error) { return fnDtAdd([]any{base, 1, u}) }},
+		{"dt_subtract", func(u string) (any, error) { return fnDtSubtract([]any{base, 1, u}) }},
+		{"start_of", func(u string) (any, error) { return fnStartOf([]any{base, u}) }},
+		{"end_of", func(u string) (any, error) { return fnEndOf([]any{base, u}) }},
+		{"time_bucket", func(u string) (any, error) { return fnTimeBucket([]any{base, u}) }},
+	}
+
+	for _, tt := range tests {
+		for _, unit := range []string{"fortnights", "", "decade", "dayz"} {
+			t.Run(tt.name+"/"+unit, func(t *testing.T) {
+				_, err := tt.call(unit)
+				if err == nil {
+					t.Fatalf("%s accepted unit %q instead of reporting it", tt.name, unit)
+				}
+				// The message must name the offending unit and what was
+				// expected, so the fix is visible without reading the source.
+				if !strings.Contains(err.Error(), "unknown unit") {
+					t.Errorf("error %q should say the unit was unknown", err)
+				}
+				if !strings.Contains(err.Error(), "expected one of") {
+					t.Errorf("error %q should list the accepted units", err)
+				}
+			})
+		}
+	}
+}
+
+// start_of and end_of accepted only exact singular lowercase, so start_of(dt,
+// "days") silently returned the input while dt_add(dt, 1, "days") worked. An
+// author who learned the plural from one got a no-op from the other.
+func TestStartOfAndEndOfAcceptPluralAndMixedCase(t *testing.T) {
+	base := time.Date(2024, 3, 15, 12, 30, 45, 0, time.UTC)
+
+	for _, unit := range []string{"day", "days", "Days", "DAYS", " days "} {
+		t.Run(unit, func(t *testing.T) {
+			got, err := fnStartOf([]any{base, unit})
+			if err != nil {
+				t.Fatal(err)
+			}
+			tm, _ := got.(time.Time)
+			want := time.Date(2024, 3, 15, 0, 0, 0, 0, time.UTC)
+			if !tm.Equal(want) {
+				t.Errorf("start_of %q = %v, want %v", unit, tm, want)
+			}
+
+			got, err = fnEndOf([]any{base, unit})
+			if err != nil {
+				t.Fatal(err)
+			}
+			tm, _ = got.(time.Time)
+			if tm.Hour() != 23 || tm.Minute() != 59 {
+				t.Errorf("end_of %q = %v, want the last instant of the day", unit, tm)
+			}
+		})
+	}
+}
+
+// end_of now handles the hour and minute that start_of always did, and that its
+// documentation already claimed.
+func TestEndOfHandlesHourAndMinute(t *testing.T) {
+	base := time.Date(2024, 3, 15, 12, 30, 45, 0, time.UTC)
+
+	got, err := fnEndOf([]any{base, "hour"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tm, _ := got.(time.Time)
+	if tm.Hour() != 12 || tm.Minute() != 59 || tm.Second() != 59 {
+		t.Errorf("end_of hour = %v, want 12:59:59", tm)
+	}
+
+	got, err = fnEndOf([]any{base, "minute"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tm, _ = got.(time.Time)
+	if tm.Minute() != 30 || tm.Second() != 59 {
+		t.Errorf("end_of minute = %v, want 12:30:59", tm)
 	}
 }
