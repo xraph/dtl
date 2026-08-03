@@ -1,7 +1,6 @@
 package stdlib
 
 import (
-	"math"
 	"sort"
 
 	"github.com/xraph/dtl/executor"
@@ -186,9 +185,10 @@ func fnLinreg(args []any) (any, error) {
 
 	var ssRes, ssTot float64
 	for i := range xs {
-		predicted := slope*xs[i] + intercept
-		ssRes += math.Pow(ys[i]-predicted, 2)
-		ssTot += math.Pow(ys[i]-my, 2)
+		residual := ys[i] - (slope*xs[i] + intercept)
+		deviation := ys[i] - my
+		ssRes += residual * residual
+		ssTot += deviation * deviation
 	}
 	r2 := 1.0
 	if ssTot != 0 {
