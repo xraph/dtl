@@ -83,11 +83,11 @@ Best in each row is **bold**.
 
 | workload | DTL | expr | cel-go | goja | gopher-lua | starlark |
 |---|--:|--:|--:|--:|--:|--:|
-| arith | 210 | 111 | 148 | 184 | **94** | 333 |
-| cond | 161 | **65** | 134 | 172 | 88 | 648 |
-| string | 319 | **157** | 238 | 417 | 290 | 502 |
-| field | 149 | 154 | **88** | 446 | 2694 ◆ | 773 |
-| collection | 11254 | **5169** | n/a | 12018 | 5213 | 6406 |
+| arith | 221 | 109 | 130 | 164 | **92** | 338 |
+| cond | 172 | **63** | 133 | 167 | 75 | 645 |
+| string | 337 | **161** | 231 | 397 | 293 | 503 |
+| field | 162 | 156 | **115** | 461 | 2843 ◆ | 814 |
+| collection | **4106** | 5186 | n/a | 12144 | 5310 | 6496 |
 
 ◆ dominated by per-call marshalling, see above.
 
@@ -95,9 +95,9 @@ Allocations per evaluation:
 
 | workload | DTL | expr | cel-go | goja | gopher-lua | starlark |
 |---|--:|--:|--:|--:|--:|--:|
-| arith | 264 B / 5 | 120 B / 5 | **40 B / 5** | 160 B / 2 | 16 B / 2 | 448 B / 14 |
-| cond | 240 B / 2 | 32 B / 1 | 24 B / 3 | 128 B / 3 | **8 B / 1** | 744 B / 28 |
-| collection | 21760 B / 116 | **3784 B / 56** | n/a | 7824 B / 115 | 7512 B / 104 | 3312 B / 151 |
+| arith | 280 B / 5 | 120 B / 5 | **40 B / 5** | 160 B / 2 | 16 B / 2 | 448 B / 14 |
+| cond | 256 B / 2 | 32 B / 1 | 24 B / 3 | 128 B / 3 | **8 B / 1** | 744 B / 28 |
+| collection | **2464 B / 11** | 3784 B / 56 | n/a | 7824 B / 115 | 7512 B / 104 | 3312 B / 151 |
 
 ### Compilation (cold start)
 
@@ -132,9 +132,10 @@ so that sharing cannot leak between them.
 
 **DTL is a tree-walking interpreter competing against bytecode VMs.** expr and
 gopher-lua compile to bytecode; DTL walks the AST. On evaluation it is
-still behind expr on every workload — around 2× on the small ones and on the
-collection workload — though it now matches expr on `field` and has closed most
-of the gap elsewhere.
+behind expr on the small expressions — around 2× — where per-call overhead
+dominates and a bytecode VM has less of it to pay. It matches expr on `field`
+and is now fastest of the six on `collection`, where the work per call is
+large enough for the evaluator itself to matter more than the call.
 That is the expected shape, not a defect — but it is the honest headline.
 
 **Per-call overhead still sets the floor, but it is much lower than it was.**
@@ -162,6 +163,12 @@ because that workload is almost entirely call overhead plus three map reads.
 **Where DTL wins.** Cold start, by a wide margin — see the compile table
 above. Its front end was always quick; what had hidden that was `registry.New`
 rebuilding the whole standard library, which is now shared process-wide.
+
+Also `collection`, which used to be its worst result at 20 µs and 320
+allocations. A lambda's argument scope is now reused across elements instead
+of allocated per element, and the higher-order functions no longer take a
+clock reading per element — that call alone was 30% of the workload's CPU.
+Both changes came out of a profile; neither touched the evaluator's design.
 
 For a host that builds a registry per tenant or per request, that single
 change is worth more than everything else here: 29 µs and 316 allocations per
