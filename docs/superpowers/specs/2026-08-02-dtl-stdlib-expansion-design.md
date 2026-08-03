@@ -199,15 +199,24 @@ Ships after Phase 1, also additive.
 **No duration type.** DTL has no runtime duration value. `durationUnit` in
 `stdlib/datetime.go` builds a `time.Duration` internally, but `dt_add` takes an
 int and a unit string and returns a `time.Time` — no duration ever reaches DTL,
-and `type_of` has no case for one. Accordingly `duration_between` returns `int`
-seconds and takes a unit argument; nothing in Phase 2 implies a type that does
-not exist.
+and `type_of` has no case for one. Accordingly `duration_between` returns a
+plain number in a unit the caller names — fractional, so 36 hours is 1.5 days —
+rather than implying a type that does not exist.
+
+*As built:* it returns `float` rather than the `int` seconds sketched here. A
+fractional result is what distinguishes it from `diff`, which already returns
+whole units; an integer version would have duplicated `diff` instead of
+complementing it.
 
 **`dt_in_zone` needs tzdata.** `time.LoadLocation` depends on system zone data,
 which is absent in scratch containers. Implementation must decide between
 importing `time/tzdata` (embeds ~450KB into every binary that links DTL) and
-returning a clear error when zone data is unavailable. Resolved during Phase 2
-planning, not here.
+returning a clear error when zone data is unavailable.
+
+*As built:* it returns an error naming the zone and pointing at
+`import _ "time/tzdata"`. Embedding 450KB into every binary that links DTL is
+the host's decision to make, not the language's, and a silent fall back to UTC
+would be a wrong answer that looks like a right one.
 
 ## Cross-cutting changes
 

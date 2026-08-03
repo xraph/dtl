@@ -702,3 +702,131 @@ func TestEndOfHandlesHourAndMinute(t *testing.T) {
 		t.Errorf("end_of minute = %v, want 12:30:59", tm)
 	}
 }
+
+func TestDtParse(t *testing.T) {
+	tests := []struct {
+		name, input, format string
+		want                time.Time
+	}{
+		{"date", "2024-03-15", "YYYY-MM-DD", time.Date(2024, 3, 15, 0, 0, 0, 0, time.UTC)},
+		{"datetime", "2024-03-15 12:30:45", "YYYY-MM-DD HH:mm:ss", time.Date(2024, 3, 15, 12, 30, 45, 0, time.UTC)},
+		{"two-digit year", "24-03-15", "YY-MM-DD", time.Date(2024, 3, 15, 0, 0, 0, 0, time.UTC)},
+		{"slashes", "15/03/2024", "DD/MM/YYYY", time.Date(2024, 3, 15, 0, 0, 0, 0, time.UTC)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := fnDtParse([]any{tt.input, tt.format})
+			if err != nil {
+				t.Fatal(err)
+			}
+			tm, _ := got.(time.Time)
+			if !tm.Equal(tt.want) {
+				t.Errorf("got %v, want %v", tm, tt.want)
+			}
+		})
+	}
+}
+
+// A mismatch is an error naming both the input and the format, since a silent
+// zero datetime would flow onward looking like a real timestamp.
+func TestDtParseRejectsMismatches(t *testing.T) {
+	for _, tt := range []struct{ input, format string }{
+		{"not a date", "YYYY-MM-DD"},
+		{"2024-03-15", "DD/MM/YYYY"},
+		{"", "YYYY-MM-DD"},
+	} {
+		t.Run(tt.input, func(t *testing.T) {
+			_, err := fnDtParse([]any{tt.input, tt.format})
+			if err == nil {
+				t.Fatal("expected an error")
+			}
+			if !strings.Contains(err.Error(), "dt_parse") {
+				t.Errorf("error %q should name dt_parse", err)
+			}
+		})
+	}
+}
+
+// dt_parse and dt_format are inverses, so a value written by one must be read
+// back by the other.
+func TestDtParseRoundTripsWithDtFormat(t *testing.T) {
+	base := time.Date(2024, 3, 15, 12, 30, 45, 0, time.UTC)
+	const format = "YYYY-MM-DD HH:mm:ss"
+
+	formatted, err := fnDtFormat([]any{base, format})
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, err := fnDtParse([]any{formatted, format})
+	if err != nil {
+		t.Fatalf("could not re-parse %q: %v", formatted, err)
+	}
+	tm, _ := back.(time.Time)
+	if !tm.Equal(base) {
+		t.Errorf("round trip gave %v, want %v", tm, base)
+	}
+}
+
+// dt_in_zone depends on IANA zone data, which comes from the host or from an
+// embedded copy and is absent in a scratch container. Both outcomes are
+// acceptable; silently leaving the datetime in UTC is not.
+func TestDtInZone(t *testing.T) {
+	base := time.Date(2024, 3, 15, 12, 0, 0, 0, time.UTC)
+
+	got, err := fnDtInZone([]any{base, "America/New_York"})
+	if err != nil {
+		if !strings.Contains(err.Error(), "zone data") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		t.Skip("no IANA zone data on this host; the error explains how to embed it")
+	}
+
+	tm, _ := got.(time.Time)
+	// The instant is unchanged; only the wall-clock reading moves.
+	if !tm.Equal(base) {
+		t.Errorf("dt_in_zone changed the instant: %v vs %v", tm, base)
+	}
+	if tm.Hour() == base.Hour() {
+		t.Errorf("expected the wall-clock hour to differ from UTC, both are %d", tm.Hour())
+	}
+}
+
+func TestDtInZoneRejectsUnknownZones(t *testing.T) {
+	base := time.Date(2024, 3, 15, 12, 0, 0, 0, time.UTC)
+	_, err := fnDtInZone([]any{base, "Mars/Olympus_Mons"})
+	if err == nil {
+		t.Fatal("expected an error for an unknown zone")
+	}
+	if !strings.Contains(err.Error(), "dt_in_zone") {
+		t.Errorf("error %q should name dt_in_zone", err)
+	}
+}
+
+func TestTrigonometry(t *testing.T) {
+	tests := []struct {
+		name string
+		fn   func([]any) (any, error)
+		in   float64
+		want float64
+	}{
+		{"sin 0", fnSin, 0, 0},
+		{"sin pi/2", fnSin, math.Pi / 2, 1},
+		{"cos 0", fnCos, 0, 1},
+		{"cos pi", fnCos, math.Pi, -1},
+		{"tan 0", fnTan, 0, 0},
+		{"tan pi/4", fnTan, math.Pi / 4, 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.fn([]any{tt.in})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if math.Abs(executorFloat(got)-tt.want) > 1e-9 {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
