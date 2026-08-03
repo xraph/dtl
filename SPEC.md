@@ -76,8 +76,34 @@ name: type = default_value    -- optional with default
 ...name: type                 -- variadic (must be last)
 ```
 
-**Supported types**: `string`, `int`, `float`, `bool`, `datetime`, `duration`, `object`, `any`, `void`
-Plus array variants: `string[]`, `float[]`, `object[]`, etc.
+**Type annotations are advisory.** They document intent and drive editor
+completion; they are not enforced. The parser accepts any identifier in type
+position, and the compiler recognises a handful of names for light inference
+while leaving the rest unchecked. Nothing is rejected for having an unfamiliar
+type, so an annotation is a note to the reader rather than a constraint on the
+caller.
+
+The type names DTL itself understands are the ones `type_of` reports:
+
+| Name | Example |
+|------|---------|
+| `null` | `null` |
+| `bool` | `true` |
+| `int` | `42` |
+| `float` | `1.5` |
+| `string` | `"text"` |
+| `array` | `[1, 2, 3]` |
+| `object` | `{a: 1}` |
+| `datetime` | `now()` |
+
+Conventional annotations are `string`, `int`, `float`, `bool`, `datetime`,
+`object`, and `any`, plus array variants written with a suffix — `string[]`,
+`float[]`, `object[]`. A `record { ... }` type may be written inline or bound
+with `type`.
+
+There is no duration value. `dt_add` takes an amount and a unit name and
+returns a datetime, and `duration_between` returns a number in a named unit —
+neither produces a distinct duration type.
 
 ### 2. Variables
 
@@ -195,8 +221,8 @@ name | substr(0, 5)                   -- first 5 chars
 ```
 now()                                  -- current datetime
 today()                                -- current date
-dt | add(7, "days")                    -- add duration
-dt | subtract(1, "hours")
+dt | dt_add(7, "days")                 -- advance by 7 days
+dt | dt_subtract(1, "hours")
 dt | diff(other_dt, "minutes")         -- difference in minutes
 dt | format("YYYY-MM-DD")
 dt | year()
@@ -260,117 +286,156 @@ value | as_datetime("YYYY-MM-DD")
 
 ### Namespaces
 
-Functions live in namespaces for organization and access control:
+`::` separates namespace segments. It serves two distinct purposes.
+
+**Standard library topics are two-segment**, naming a capability area:
 
 ```
-system::math::clamp          -- built-in system functions
+json::parse
+regex::replace
+encoding::base64_encode
+hash::sha256
+path::get
+time::now
+id::uuid
+```
+
+**Host- and user-registered functions may use a leading tier segment** for
+organization and access control. The tier is the host's convention, not
+something the language enforces:
+
+```
 shared::analytics::anomaly   -- shared across all users
 team::data_eng::normalize    -- team-scoped
 user::jane::my_helper        -- private to a user
 app::iot_connector::decode   -- provided by an app
 ```
 
+A small set of `system::`-prefixed spellings — `system::math::clamp`,
+`system::text::title_case` and similar — remain registered as aliases of their
+bare counterparts. They are supported for compatibility and are not the pattern
+new functions follow.
+
 
 ## Standard Library
 
-The following function namespaces should be pre-loaded in `extensions/function/stdlib/`:
+The standard library is domain-neutral and always registered. Anything reaching
+outside the interpreter — a datastore, an HTTP client, a message bus — is
+registered by the host under its own namespace.
 
-### `system::math`
+Names below are the callable spellings. Every builtin also carries its own
+signature and description, which the language server reads directly from the
+registration table rather than from a separate list.
 
-```
-fn clamp(value: float, min: float, max: float) -> float =>
-    if value < min then min else if value > max then max else value
+### Core
 
-fn lerp(a: float, b: float, t: float) -> float =>
-    a + (b - a) * t
+`len` `type_of` `is_null` `is_blank` `coalesce` `default` `to_string` `abs`
+`round` `ceil` `floor` `power` `sqrt` `log` `log10` `log2` `exp` `mod` `trunc`
+`gcd` `lcm` `hypot` `sin` `cos` `tan` `atan2` `is_nan` `is_finite` `sign`
+`clamp` `lerp` `normalize` `random` `random_int` `now` `today`
 
-fn normalize(value: float, min: float, max: float) -> float =>
-    if max == min then 0.0 else (value - min) / (max - min)
+`coalesce(a, b, ...)` returns the first argument that is not null.
+`default(x, fallback)` substitutes when `x` is *blank* — null, empty or
+whitespace-only string, empty array, or empty object.
 
-fn moving_avg(values: float[], window: int) -> float =>
-    values | tail(window) | avg()
+### Text
 
-fn ewma(values: float[], alpha: float = 0.3) -> float:
-    values | reduce(values | first(), (acc, v) => alpha * v + (1 - alpha) * acc)
-```
+`upper` `lower` `trim` `trim_start` `trim_end` `trim_chars` `normalize_space`
+`replace` `split` `join` `lines` `starts_with` `ends_with` `contains`
+`index_of` `last_index_of` `count_occurrences` `strip_prefix` `strip_suffix`
+`substr` `left` `right` `char_at` `truncate` `pad_left` `pad_right` `repeat`
+`reverse_text` `capitalize` `title_case` `snake_case` `camel_case`
+`pascal_case` `kebab_case` `slugify` `word_count` `extract_number` `mask`
 
-### `system::text`
+Text functions measure and index in **characters, not bytes**, so
+`substr(s, index_of(s, x))` composes correctly on non-ASCII input.
 
-```
-fn slugify(text: string) -> string =>
-    text | lower() | trim() | replace(" ", "-") | replace("[^a-z0-9-]", "")
+### Collections
 
-fn truncate(text: string, max_len: int, suffix: string = "...") -> string =>
-    if text | len() <= max_len then text
-    else (text | substr(0, max_len - (suffix | len()))) ++ suffix
+`map` `flat_map` `filter` `reduce` `partition` `sort` `sort_by` `reverse`
+`unique` `distinct_by` `group_by` `index_by` `count_by` `chunk` `windows`
+`flatten` `compact` `slice` `concat` `zip` `unzip` `pluck` `head` `tail`
+`first` `last` `take_while` `drop_while` `find` `find_index` `includes`
+`every` `some` `range` `seq` `top_n` `intersection` `union` `difference`
 
-fn extract_number(text: string) -> float =>
-    text | match_regex("[0-9]+\\.?[0-9]*") | first() | as_float()
-```
+### Aggregation and statistics
 
-### `system::datetime`
+`sum` `avg` `min` `max` `count` `count_where` `sum_where` `sum_by` `avg_by`
+`min_by` `max_by` `median` `mode` `percentile` `quantile` `stdev` `variance`
+`cv` `sum_squares` `covariance` `correlation` `linreg` `z_score`
+`outlier_bounds` `histogram` `moving_avg` `ewma`
 
-```
-fn business_days_between(start: datetime, end: datetime) -> int:
-    let days = start | diff(end, "days") | as_int()
-    let weeks = days / 7
-    let remaining = days % 7
-    weeks * 5 + (remaining | clamp(0, 5))
+`percentile` takes 0-100; `quantile` takes a fraction from 0 to 1.
 
-fn is_business_day(dt: datetime) -> bool =>
-    dt | day_of_week() >= 1 && dt | day_of_week() <= 5
+### Objects
 
-fn time_bucket(dt: datetime, interval: string) -> datetime =>
-    dt | start_of(interval)
-```
+`keys` `values` `entries` `from_entries` `merge` `deep_merge` `map_values`
+`map_keys` `invert` `pick` `omit` `has_key`
 
-### `system::stats`
+`merge` overwrites at the top level; `deep_merge` recurses into nested objects
+and replaces arrays rather than concatenating them.
 
-```
-fn z_score(value: float, values: float[]) -> float:
-    let mean = values | avg()
-    let std = values | stdev()
-    if std == 0 then 0.0
-    else (value - mean) / std
+### `path::` — nested access
 
-fn outlier_bounds(values: float[], factor: float = 1.5) -> object:
-    let q1 = values | percentile(25)
-    let q3 = values | percentile(75)
-    let iqr = q3 - q1
-    return { lower: q1 - factor * iqr, upper: q3 + factor * iqr }
+`path::get(obj, path, default?)` `path::has` `path::set` `path::delete`
+`path::flatten`
 
-fn correlation(x: float[], y: float[]) -> float:
-    let n = x | count()
-    let sum_xy = x | zip(y) | map((a, b) => a * b) | sum()
-    let sum_x = x | sum()
-    let sum_y = y | sum()
-    let sum_x2 = x | map(v => v * v) | sum()
-    let sum_y2 = y | map(v => v * v) | sum()
-    (n * sum_xy - sum_x * sum_y) /
-        sqrt((n * sum_x2 - sum_x * sum_x) * (n * sum_y2 - sum_y * sum_y))
-```
+Paths are dot-separated, and a numeric segment indexes an array:
+`path::get(o, "items.0.name")`. Keys containing a literal dot are not
+addressable this way. `path::set` and `path::delete` return copies; nothing is mutated.
 
-### `system::collections`
+### `regex::`
 
-```
-fn top_n(values: any[], n: int, key: string = "") -> any[]:
-    if key == "" then values | sort(desc) | head(n)
-    else values | sort_by(key, desc) | head(n)
+`regex::test` `regex::find` `regex::find_all` `regex::replace` `regex::split`
+`regex::groups` `regex::escape`
 
-fn histogram(values: float[], bins: int = 10) -> object[]:
-    let min_val = values | min()
-    let max_val = values | max()
-    let bin_width = (max_val - min_val) / bins
-    values
-        | map(v => ((v - min_val) / bin_width) | floor() | clamp(0, bins - 1) | as_int())
-        | group_by(bin => bin)
-        | map((bin, items) => {
-            bin: bin,
-            range_start: min_val + bin * bin_width,
-            range_end: min_val + (bin + 1) * bin_width,
-            count: items | count()
-          })
-```
+Patterns are RE2, so matching is linear in the input with no catastrophic
+backtracking. Compiled patterns are cached. `match_regex` is a legacy spelling
+of `regex::find_all`.
+
+### `json::`
+
+`json::parse` `json::stringify` `json::is_valid`
+
+Whole numbers survive a parse as integers rather than becoming floats. Parsing
+enforces a nesting-depth limit.
+
+### `encoding::`
+
+`encoding::base64_encode` `encoding::base64_decode` `encoding::base64url_encode`
+`encoding::base64url_decode` `encoding::hex_encode` `encoding::hex_decode`
+`encoding::url_encode` `encoding::url_decode`
+
+Decoders report malformed input as an error rather than returning empty.
+
+### `hash::`
+
+`hash::sha256` `hash::sha512` `hash::sha1` `hash::md5` `hash::crc32`
+
+`hash::sha1`, `hash::md5` and `hash::crc32` are provided for interop with
+systems that already use them. They are **not suitable for security
+purposes**.
+
+### Date and time
+
+`now` `today` `time::now` `dt_add` `dt_subtract` `dt_format` `dt_parse` `diff`
+`duration_between` `to_unix` `from_unix` `year` `month` `day` `hour` `minute`
+`second` `day_of_week` `day_of_year` `iso_week` `start_of` `end_of`
+`time_bucket` `dt_in_zone` `is_before` `is_after` `is_between`
+`is_business_day` `business_days_between`
+
+Unit names are case-insensitive and accept singular or plural. `diff` returns
+whole units; `duration_between` returns a fractional count.
+
+### Casting and formatting
+
+`as_int` `as_float` `as_string` `as_bool` `as_datetime` (also spelled `to_int`,
+`to_float`, `to_bool`, `to_date`, `to_datetime`) `format_number`
+`format_currency` `format_percent`
+
+### Identity
+
+`id::uuid` `id::slug`
 
 ---
 

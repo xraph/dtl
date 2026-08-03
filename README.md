@@ -64,7 +64,7 @@ func main() {
 | `lexer`, `parser`, `ast` | Front end — tokens, grammar, typed syntax tree |
 | `compiler` | Resolves and type-checks a function against a registry |
 | `executor` | Tree-walking evaluator with depth and timeout limits |
-| `stdlib` | Pure standard library — collections, text, math, stats, time, casting |
+| `stdlib` | Pure standard library — collections, text, math, stats, time, casting, plus `path::` `regex::` `json::` `encoding::` `hash::` |
 | `registry` | Compiled-function cache, builtin table, execution entry point |
 | `capability` | Hook for narrowing what a function may do (see below) |
 
