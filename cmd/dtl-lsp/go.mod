@@ -3,7 +3,7 @@ module github.com/xraph/dtl/cmd/dtl-lsp
 go 1.26.0
 
 require (
-	github.com/xraph/dtl v0.0.0
+	github.com/xraph/dtl v1.5.5
 	github.com/xraph/langserver v1.0.0
 )
 
