@@ -302,6 +302,11 @@ func (ctx *compileCtx) checkExpr(expr ast.ExprNode) {
 		}
 		childCtx := &compileCtx{
 			result: ctx.result, resolver: ctx.resolver, scope: childScope, typeDefs: ctx.typeDefs,
+			// The namespaces declared so far travel into the nested body.
+			// resolveFn has nothing else to resolve a bare cross-pack callee
+			// against, so dropping them rejects inside a lambda exactly what
+			// compiles one line higher up.
+			uses: ctx.uses,
 		}
 		childCtx.checkExpr(e.Body)
 
@@ -355,6 +360,11 @@ func (ctx *compileCtx) checkExpr(expr ast.ExprNode) {
 		}
 		childCtx := &compileCtx{
 			result: ctx.result, resolver: ctx.resolver, scope: childScope, typeDefs: ctx.typeDefs,
+			// The namespaces declared so far travel into the nested body.
+			// resolveFn has nothing else to resolve a bare cross-pack callee
+			// against, so dropping them rejects inside a lambda exactly what
+			// compiles one line higher up.
+			uses: ctx.uses,
 		}
 		childCtx.checkExpr(e.Body)
 

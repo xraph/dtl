@@ -570,3 +570,168 @@ func TestCompile_CrossPackCallIsRecordedAsAQualifiedDependency(t *testing.T) {
 		t.Errorf("expected the qualified dependency to be recorded, got %v", result.Dependencies)
 	}
 }
+
+// --- Cross-pack calls inside nested expression bodies ---
+//
+// Lambda and for bodies are checked through a child compileCtx. That child
+// must carry the namespaces already declared by `use`, because resolveFn has
+// nothing else to resolve a bare cross-pack callee against. When it does not,
+// the same call compiles at the function body's top level and is rejected one
+// line deeper inside a lambda, so "compiles" and "runs" disagree — which is
+// the exact failure the namespace-aware resolver exists to prevent.
+
+func TestCompile_UseStatementReachesInsideALambdaBody(t *testing.T) {
+	src := `fn rebuild(codes: array) -> array:
+  use com.example.core.shifts
+  return map(codes, fn(c) => close_shift(c))
+`
+	fn, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	c := New(&mockResolver{fns: map[string]int{
+		"map": 2,
+		"app:com.example.core.shifts::close_shift": 1,
+	}})
+	result := c.Compile(fn)
+
+	if result.HasErrors() {
+		t.Fatalf("a use-resolvable call inside a lambda must compile like one at the top level: %v", result.Errors)
+	}
+}
+
+func TestCompile_UseStatementReachesInsideAForBody(t *testing.T) {
+	src := `fn rebuild(codes: array) -> array:
+  use com.example.core.shifts
+  let out = for c in codes: close_shift(c)
+  return out
+`
+	fn, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	c := New(&mockResolver{fns: map[string]int{
+		"app:com.example.core.shifts::close_shift": 1,
+	}})
+	result := c.Compile(fn)
+
+	if result.HasErrors() {
+		t.Fatalf("a use-resolvable call inside a for body must compile like one at the top level: %v", result.Errors)
+	}
+}
+
+// Inheriting `uses` must not turn the nested body into a blind spot. A name no
+// declared namespace owns stays an error wherever it appears, or the install
+// gate is off for every lambda in the language.
+func TestCompile_UseStatementDoesNotExcuseAnUnknownFunctionInsideALambdaBody(t *testing.T) {
+	src := `fn rebuild(codes: array) -> array:
+  use com.example.core.shifts
+  return map(codes, fn(c) => no_such_function(c))
+`
+	fn, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	c := New(&mockResolver{fns: map[string]int{
+		"map": 2,
+		"app:com.example.core.shifts::close_shift": 1,
+	}})
+	result := c.Compile(fn)
+
+	found := false
+	for _, e := range result.Errors {
+		if e.Code == "unknown_function" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected unknown_function inside the lambda, got %v", result.Errors)
+	}
+}
+
+func TestCompile_UseStatementDoesNotExcuseAnUnknownFunctionInsideAForBody(t *testing.T) {
+	src := `fn rebuild(codes: array) -> array:
+  use com.example.core.shifts
+  let out = for c in codes: no_such_function(c)
+  return out
+`
+	fn, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	c := New(&mockResolver{fns: map[string]int{
+		"app:com.example.core.shifts::close_shift": 1,
+	}})
+	result := c.Compile(fn)
+
+	found := false
+	for _, e := range result.Errors {
+		if e.Code == "unknown_function" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected unknown_function inside the for body, got %v", result.Errors)
+	}
+}
+
+// The dependency install ordering needs is the qualified name, and nesting the
+// call does not change which function the pack depends on. A bare name exists
+// in no registry, so recording it would make the cross-pack edge invisible.
+func TestCompile_CrossPackCallInsideALambdaIsRecordedAsAQualifiedDependency(t *testing.T) {
+	src := `fn rebuild(codes: array) -> array:
+  use com.example.core.shifts
+  return map(codes, fn(c) => close_shift(c))
+`
+	fn, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	c := New(&mockResolver{fns: map[string]int{
+		"map": 2,
+		"app:com.example.core.shifts::close_shift": 1,
+	}})
+	result := c.Compile(fn)
+
+	found := false
+	for _, dep := range result.Dependencies {
+		if dep == "app:com.example.core.shifts::close_shift" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected the qualified dependency from inside the lambda, got %v", result.Dependencies)
+	}
+}
+
+func TestCompile_CrossPackCallInsideAForBodyIsRecordedAsAQualifiedDependency(t *testing.T) {
+	src := `fn rebuild(codes: array) -> array:
+  use com.example.core.shifts
+  let out = for c in codes: close_shift(c)
+  return out
+`
+	fn, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	c := New(&mockResolver{fns: map[string]int{
+		"app:com.example.core.shifts::close_shift": 1,
+	}})
+	result := c.Compile(fn)
+
+	found := false
+	for _, dep := range result.Dependencies {
+		if dep == "app:com.example.core.shifts::close_shift" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected the qualified dependency from inside the for body, got %v", result.Dependencies)
+	}
+}
