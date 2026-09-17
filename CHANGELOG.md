@@ -1,3 +1,9 @@
+## [1.5.6](https://github.com/xraph/dtl/compare/v1.5.5...v1.5.6) (2026-09-17)
+
+### Bug Fixes
+
+* **compiler:** carry use namespaces into lambda and for bodies ([3c4db05](https://github.com/xraph/dtl/commit/3c4db05376d5e080424db82fdcaf98458381e7d8))
+
 ## [1.5.5](https://github.com/xraph/dtl/compare/v1.5.4...v1.5.5) (2026-08-03)
 
 ### Bug Fixes
