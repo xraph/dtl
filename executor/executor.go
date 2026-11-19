@@ -887,6 +887,7 @@ func (ex *Executor) evalLambda(ec *evalCtx, e *ast.LambdaExpr) (any, error) {
 		debug: ec.debug,
 		depth: ec.depth,
 		start: ec.start,
+		ctx:   ec.ctx,
 	}, nil
 }
 
@@ -908,6 +909,13 @@ type lambdaClosure struct {
 	// never fire inside a collection.
 	depth int
 	start time.Time
+
+	// ctx is the context the lambda was written in, carried for the same
+	// reason: stdlib's higher-order functions call it with
+	// context.Background(), having none of their own. A host builtin the
+	// lambda calls, such as a query reading the host's services from its
+	// context, then found nothing and failed inside map and filter.
+	ctx context.Context
 
 	// scratch is this closure's argument scope, reused across calls. filter,
 	// map and reduce invoke the same closure once per element, and allocating
@@ -951,11 +959,20 @@ func (lc *lambdaClosure) Call(ctx context.Context, args []any, _ time.Time, _ in
 			childEnv.set(name, args[i])
 		}
 	}
-	ec := &evalCtx{ctx: ctx, env: childEnv, depth: lc.depth + 1, start: lc.start, debug: lc.debug}
+	ec := &evalCtx{ctx: lc.callContext(ctx), env: childEnv, depth: lc.depth + 1, start: lc.start, debug: lc.debug}
 	if err := ec.checkLimits(lc.executor); err != nil {
 		return nil, err
 	}
 	return lc.executor.evalExpr(ec, lc.body)
+}
+
+// callContext is the context a call runs in: the caller's when it has one
+// of its own, else the one the lambda was written in.
+func (lc *lambdaClosure) callContext(ctx context.Context) context.Context {
+	if lc.ctx != nil && (ctx == nil || ctx == context.Background() || ctx == context.TODO()) {
+		return lc.ctx
+	}
+	return ctx
 }
 
 func (ex *Executor) evalObject(ec *evalCtx, e *ast.ObjectExpr) (any, error) {
