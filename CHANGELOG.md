@@ -1,3 +1,9 @@
+## [1.5.7](https://github.com/xraph/dtl/compare/v1.5.6...v1.5.7) (2026-11-19)
+
+### Bug Fixes
+
+* **executor:** run a lambda in the context it was written in ([5e4dcdd](https://github.com/xraph/dtl/commit/5e4dcdd3c83b61f9c6611f64bb867a6424df06f4))
+
 ## [1.5.6](https://github.com/xraph/dtl/compare/v1.5.5...v1.5.6) (2026-09-17)
 
 ### Bug Fixes
